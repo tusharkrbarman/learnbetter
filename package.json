@@ -1,0 +1,21 @@
+{
+  "name": "learnbetter",
+  "productName": "LearnBetter",
+  "version": "0.1.0",
+  "description": "Windows desktop PDF reader that turns highlights into Notion study toggles.",
+  "main": "src/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node scripts/check-project.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.3.0",
+    "electron-store": "^8.2.0",
+    "openai": "^4.77.0",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "devDependencies": {
+    "electron": "^42.4.0"
+  }
+}

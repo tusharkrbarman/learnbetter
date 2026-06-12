@@ -1,0 +1,425 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f7f7f5;
+  color: #1f2328;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 960px;
+  overflow: hidden;
+  background: #f7f7f5;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: 100vh;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 20px;
+  border-right: 1px solid #deded9;
+  background: #fbfbfa;
+  overflow-y: auto;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.brand p {
+  margin: 5px 0 0;
+  color: #73736d;
+  font-size: 12px;
+}
+
+.panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.panel + .panel {
+  padding-top: 18px;
+  border-top: 1px solid #e4e4df;
+}
+
+.panel-header,
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panel h2 {
+  margin: 0;
+  color: #3c3f44;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+label {
+  display: block;
+  margin: 11px 0;
+  color: #555a60;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+input {
+  width: 100%;
+  height: 34px;
+  margin-top: 5px;
+  padding: 6px 8px;
+  border: 1px solid #d7d7d1;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #1f2328;
+}
+
+input:focus {
+  border-color: #777d86;
+  outline: 2px solid #e6e6e0;
+  outline-offset: 1px;
+}
+
+.primary-button,
+.secondary-button,
+.icon-button,
+.zoom-value,
+.find-controls input {
+  height: 34px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.primary-button {
+  border: 1px solid #1f2328;
+  padding: 0 12px;
+  color: #ffffff;
+  background: #1f2328;
+}
+
+.primary-button:hover {
+  background: #343941;
+}
+
+.secondary-button,
+.icon-button,
+.zoom-value {
+  border: 1px solid #d1d1cb;
+  color: #343941;
+  background: #ffffff;
+}
+
+.secondary-button {
+  padding: 0 12px;
+}
+
+.secondary-button:hover,
+.icon-button:hover,
+.zoom-value:hover {
+  border-color: #b8b8b1;
+  background: #f3f3ef;
+}
+
+.secondary-button:disabled,
+.icon-button:disabled,
+.zoom-value:disabled {
+  color: #a0a09a;
+  border-color: #e0e0da;
+  background: #f1f1ed;
+  cursor: not-allowed;
+}
+
+.icon-button {
+  padding: 0 10px;
+}
+
+.text-button {
+  height: 26px;
+  border: 1px solid #e0c4bf;
+  border-radius: 5px;
+  padding: 0 8px;
+  color: #8d332a;
+  background: #fff8f7;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.text-button:hover {
+  border-color: #d69a91;
+  color: #a33a2f;
+  background: #f9eeee;
+}
+
+.find-controls,
+.scale-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.find-controls {
+  margin-left: 4px;
+}
+
+.find-controls input {
+  width: 150px;
+  margin: 0;
+  cursor: text;
+}
+
+.find-controls input:disabled {
+  color: #a0a09a;
+  background: #f1f1ed;
+  cursor: not-allowed;
+}
+
+.zoom-controls {
+  display: grid;
+  grid-template-columns: 34px 58px 34px;
+  gap: 4px;
+  align-items: center;
+  margin-left: 2px;
+}
+
+.zoom-controls .icon-button {
+  width: 34px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.zoom-value {
+  padding: 0;
+  font-weight: 650;
+}
+
+.status-line {
+  min-height: 17px;
+  margin: 10px 0 0;
+  color: #73736d;
+  font-size: 12px;
+}
+
+.status-line.error {
+  color: #a33a2f;
+}
+
+.status-line.success {
+  color: #23704c;
+}
+
+.reader {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 52px 1fr;
+  background: #efefeb;
+}
+
+.toolbar {
+  padding: 8px 12px;
+  border-bottom: 1px solid #deded9;
+  background: #fbfbfa;
+}
+
+.file-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  margin-left: 6px;
+  color: #73736d;
+  font-size: 11px;
+}
+
+#pdfName {
+  max-width: 560px;
+  overflow: hidden;
+  color: #2f3338;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 24px;
+  max-width: 420px;
+  margin: auto;
+  text-align: center;
+  color: #73736d;
+}
+
+.empty-state h2 {
+  margin: 0 0 6px;
+  color: #2f3338;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pdf-viewer {
+  display: none;
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 20px;
+}
+
+.pdfViewer {
+  --scale-factor: 1;
+}
+
+.pdfViewer .page {
+  position: relative;
+  margin: 0 auto 20px;
+  border: 0;
+  outline: none !important;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(31, 35, 40, 0.16), 0 10px 24px rgba(31, 35, 40, 0.08);
+}
+
+.pdfViewer .page:focus,
+.pdfViewer .page:focus-visible {
+  outline: none !important;
+}
+
+.pdfViewer.removePageBorders .page {
+  margin-bottom: 20px;
+}
+
+.highlight-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.highlight-rect {
+  position: absolute;
+  border-radius: 1px;
+  background: rgba(246, 205, 72, 0.42);
+  mix-blend-mode: multiply;
+}
+
+.textLayer ::selection,
+.textLayer span::selection {
+  color: transparent;
+  background: rgba(246, 205, 72, 0.36);
+}
+
+.capture-list {
+  display: flex;
+  max-height: 360px;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.capture-item {
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 1px solid #e4e4df;
+  background: transparent;
+}
+
+.capture-item:last-child {
+  border-bottom: 0;
+}
+
+.capture-item strong {
+  display: block;
+  overflow: hidden;
+  color: #2f3338;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-item p {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #73736d;
+  font-size: 12px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.capture-actions {
+  margin-top: 7px;
+}
+
+.badge {
+  display: inline-block;
+  margin-top: 7px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: #555a60;
+  background: #ecece7;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.badge.synced {
+  color: #23704c;
+  background: #e1f0e8;
+}
+
+.badge.failed {
+  color: #a33a2f;
+  background: #f4e2df;
+}
+
+.badge.pending {
+  color: #846018;
+  background: #f5edda;
+}

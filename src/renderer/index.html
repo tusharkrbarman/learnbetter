@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LearnBetter</title>
+    <link rel="stylesheet" href="../../node_modules/pdfjs-dist/web/pdf_viewer.css">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <section class="brand">
+          <div>
+            <h1>LearnBetter</h1>
+            <p>PDF highlights to Notion study toggles.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Setup</h2>
+            <button id="validateSettings" class="icon-button" title="Validate Notion connection">Check</button>
+          </div>
+
+          <label>
+            Notion token
+            <input id="notionToken" type="password" autocomplete="off" placeholder="secret_...">
+          </label>
+
+          <label>
+            Notion page link or ID
+            <input id="notionPageInput" type="text" autocomplete="off" placeholder="https://www.notion.so/...">
+          </label>
+
+          <label>
+            OpenAI API key
+            <input id="openaiApiKey" type="password" autocomplete="off" placeholder="sk-...">
+          </label>
+
+          <label>
+            OpenAI model
+            <input id="openaiModel" type="text" autocomplete="off" value="gpt-4o-mini">
+          </label>
+
+          <label>
+            Book title
+            <input id="bookTitle" type="text" autocomplete="off" placeholder="Optional">
+          </label>
+
+          <button id="saveSettings" class="primary-button">Save Setup</button>
+          <p id="settingsStatus" class="status-line"></p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Recent Captures</h2>
+            <button id="retryQueue" class="icon-button" title="Retry failed syncs">Retry</button>
+          </div>
+          <div id="captureList" class="capture-list"></div>
+        </section>
+      </aside>
+
+      <main class="reader">
+        <header class="toolbar">
+          <button id="openPdf" class="primary-button">Open PDF</button>
+          <button id="captureHighlight" class="secondary-button" disabled>Capture Selection</button>
+          <div class="find-controls" aria-label="PDF search controls">
+            <input id="searchPdf" type="search" autocomplete="off" placeholder="Find">
+            <button id="searchPrevious" class="icon-button" title="Previous match" disabled>Up</button>
+            <button id="searchNext" class="icon-button" title="Next match" disabled>Down</button>
+          </div>
+          <div class="zoom-controls" aria-label="PDF zoom controls">
+            <button id="zoomOut" class="icon-button" title="Zoom out" disabled>-</button>
+            <button id="zoomReset" class="zoom-value" title="Reset zoom" disabled>135%</button>
+            <button id="zoomIn" class="icon-button" title="Zoom in" disabled>+</button>
+          </div>
+          <div class="scale-controls" aria-label="PDF scale controls">
+            <button id="fitWidth" class="icon-button" title="Fit to width" disabled>Width</button>
+            <button id="fitPage" class="icon-button" title="Fit page" disabled>Fit</button>
+          </div>
+          <div class="file-meta">
+            <span id="pdfName">No PDF open</span>
+            <span id="pageMeta"></span>
+          </div>
+        </header>
+
+        <div class="viewer-stage">
+          <div id="emptyState" class="empty-state">
+            <h2>Open a PDF to begin</h2>
+            <p>Select text with the left mouse button, then right-click to capture it.</p>
+          </div>
+
+          <div id="pdfViewerContainer" class="pdf-viewer" aria-label="PDF pages">
+            <div id="pdfViewer" class="pdfViewer"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./renderer.mjs"></script>
+  </body>
+</html>
