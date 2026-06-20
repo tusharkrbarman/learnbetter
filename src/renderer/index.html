@@ -20,7 +20,7 @@
         <section class="panel">
           <div class="panel-header">
             <h2>Setup</h2>
-            <button id="validateSettings" class="icon-button" title="Validate Notion connection">Check</button>
+            <button id="validateSettings" class="icon-button" title="Check Notion and AI provider connections">Check</button>
           </div>
 
           <label>
@@ -34,13 +34,31 @@
           </label>
 
           <label>
+            AI provider
+            <select id="aiProvider">
+              <option value="openai">OpenAI API</option>
+              <option value="ollama">Ollama local</option>
+            </select>
+          </label>
+
+          <label class="provider-field provider-openai">
             OpenAI API key
             <input id="openaiApiKey" type="password" autocomplete="off" placeholder="sk-...">
           </label>
 
-          <label>
+          <label class="provider-field provider-openai">
             OpenAI model
             <input id="openaiModel" type="text" autocomplete="off" value="gpt-4o-mini">
+          </label>
+
+          <label class="provider-field provider-ollama">
+            Ollama URL
+            <input id="ollamaBaseUrl" type="url" autocomplete="off" value="http://localhost:11434">
+          </label>
+
+          <label class="provider-field provider-ollama">
+            Ollama model
+            <input id="ollamaModel" type="text" autocomplete="off" value="llama3.1:8b">
           </label>
 
           <label>
@@ -49,6 +67,18 @@
           </label>
 
           <button id="saveSettings" class="primary-button">Save Setup</button>
+          <div class="connection-status" aria-label="Connection status">
+            <div class="connection-row" title="Notion connection">
+              <span id="notionStatusDot" class="status-dot missing"></span>
+              <span class="connection-name">Notion</span>
+              <span id="notionStatusText" class="connection-message">Not configured</span>
+            </div>
+            <div class="connection-row" title="AI provider connection">
+              <span id="openaiStatusDot" class="status-dot missing"></span>
+              <span id="aiStatusName" class="connection-name">OpenAI</span>
+              <span id="openaiStatusText" class="connection-message">Not configured</span>
+            </div>
+          </div>
           <p id="settingsStatus" class="status-line"></p>
         </section>
 

@@ -11,12 +11,20 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "../../node_modules/pdfjs-dist/build/pd
 const els = {
   notionToken: document.querySelector("#notionToken"),
   notionPageInput: document.querySelector("#notionPageInput"),
+  aiProvider: document.querySelector("#aiProvider"),
   openaiApiKey: document.querySelector("#openaiApiKey"),
   openaiModel: document.querySelector("#openaiModel"),
+  ollamaBaseUrl: document.querySelector("#ollamaBaseUrl"),
+  ollamaModel: document.querySelector("#ollamaModel"),
   bookTitle: document.querySelector("#bookTitle"),
   saveSettings: document.querySelector("#saveSettings"),
   validateSettings: document.querySelector("#validateSettings"),
   settingsStatus: document.querySelector("#settingsStatus"),
+  notionStatusDot: document.querySelector("#notionStatusDot"),
+  notionStatusText: document.querySelector("#notionStatusText"),
+  openaiStatusDot: document.querySelector("#openaiStatusDot"),
+  openaiStatusText: document.querySelector("#openaiStatusText"),
+  aiStatusName: document.querySelector("#aiStatusName"),
   openPdf: document.querySelector("#openPdf"),
   captureHighlight: document.querySelector("#captureHighlight"),
   searchPdf: document.querySelector("#searchPdf"),
@@ -56,10 +64,65 @@ const ZOOM_MIN = 0.75;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.15;
 const ZOOM_DEFAULT = 1.35;
+const CONNECTION_LABELS = {
+  connected: "Connected",
+  error: "Error",
+  missing: "Not configured",
+  checking: "Checking..."
+};
 
 function setStatus(message, type = "") {
   els.settingsStatus.textContent = message;
   els.settingsStatus.className = `status-line ${type}`.trim();
+}
+
+function setProviderStatus(provider, status, message = "") {
+  const dot = provider === "notion" ? els.notionStatusDot : els.openaiStatusDot;
+  const text = provider === "notion" ? els.notionStatusText : els.openaiStatusText;
+  const normalized = status || "missing";
+  dot.className = `status-dot ${normalized}`;
+  text.textContent = message || CONNECTION_LABELS[normalized] || "Unknown";
+  text.title = message || "";
+}
+
+function getSelectedProviderLabel(provider = els.aiProvider.value) {
+  return provider === "ollama" ? "Ollama" : "OpenAI";
+}
+
+function updateProviderFields() {
+  const provider = els.aiProvider.value;
+  document.body.dataset.aiProvider = provider;
+  els.aiStatusName.textContent = getSelectedProviderLabel(provider);
+}
+
+function setConnectionChecking() {
+  setProviderStatus("notion", "checking");
+  setProviderStatus("openai", "checking");
+}
+
+async function refreshConnectionStatus({ showStatus = false } = {}) {
+  setConnectionChecking();
+
+  try {
+    const result = await window.notionPdf.getConnectionStatus();
+    setProviderStatus("notion", result.notion.status, result.notion.message);
+    setProviderStatus("openai", result.openai.status, result.openai.message);
+    els.aiStatusName.textContent = getSelectedProviderLabel(result.openai.provider);
+
+    const isConnected = result.notion.status === "connected" && result.openai.status === "connected";
+    if (showStatus) {
+      setStatus(isConnected ? `Notion and ${getSelectedProviderLabel(result.openai.provider)} are connected.` : "Some connections need attention.", isConnected ? "success" : "error");
+    }
+
+    return result;
+  } catch (error) {
+    setProviderStatus("notion", "error", "Could not check");
+    setProviderStatus("openai", "error", "Could not check");
+    if (showStatus) {
+      setStatus(error.message || String(error), "error");
+    }
+    return null;
+  }
 }
 
 function setBusy(isBusy) {
@@ -179,10 +242,14 @@ async function loadSettings() {
   const settings = await window.notionPdf.getSettings();
 
   els.notionPageInput.value = settings.notionPageInput || "";
+  els.aiProvider.value = settings.aiProvider || "openai";
   els.openaiModel.value = settings.openaiModel || "gpt-4o-mini";
+  els.ollamaBaseUrl.value = settings.ollamaBaseUrl || "http://localhost:11434";
+  els.ollamaModel.value = settings.ollamaModel || "llama3.1:8b";
   els.bookTitle.value = settings.bookTitle || "";
   els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
   els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
+  updateProviderFields();
 }
 
 async function saveSettings() {
@@ -193,8 +260,11 @@ async function saveSettings() {
     const settings = await window.notionPdf.saveSettings({
       notionToken: els.notionToken.value,
       notionPageInput: els.notionPageInput.value,
+      aiProvider: els.aiProvider.value,
       openaiApiKey: els.openaiApiKey.value,
       openaiModel: els.openaiModel.value,
+      ollamaBaseUrl: els.ollamaBaseUrl.value,
+      ollamaModel: els.ollamaModel.value,
       bookTitle: els.bookTitle.value
     });
 
@@ -203,6 +273,7 @@ async function saveSettings() {
     els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
     els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
     setStatus("Setup saved.", "success");
+    await refreshConnectionStatus();
   } catch (error) {
     setStatus(error.message || String(error), "error");
   } finally {
@@ -212,15 +283,10 @@ async function saveSettings() {
 
 async function validateSettings() {
   setBusy(true);
-  setStatus("Checking Notion page access...");
+  setStatus("Checking connections...");
 
   try {
-    const result = await window.notionPdf.validateSettings();
-    if (result.ok) {
-      setStatus("Notion page is reachable.", "success");
-    } else {
-      setStatus(result.error, "error");
-    }
+    await refreshConnectionStatus({ showStatus: true });
   } finally {
     setBusy(false);
   }
@@ -810,6 +876,10 @@ async function retryQueue() {
 
 els.saveSettings.addEventListener("click", saveSettings);
 els.validateSettings.addEventListener("click", validateSettings);
+els.aiProvider.addEventListener("change", () => {
+  updateProviderFields();
+  setProviderStatus("openai", "missing", "Save setup to check");
+});
 els.openPdf.addEventListener("click", openPdf);
 els.captureHighlight.addEventListener("click", captureHighlight);
 els.searchPdf.addEventListener("input", scheduleFind);
@@ -845,5 +915,6 @@ document.addEventListener("keydown", handleKeyDown, true);
 
 await loadSettings();
 await refreshCaptures();
+await refreshConnectionStatus();
 updateFindControls();
 updateZoomControls();

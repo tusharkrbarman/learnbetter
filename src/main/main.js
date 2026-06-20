@@ -13,8 +13,11 @@ const store = new Store({
       notionToken: "",
       notionPageId: "",
       notionPageInput: "",
+      aiProvider: "openai",
       openaiApiKey: "",
       openaiModel: "gpt-4o-mini",
+      ollamaBaseUrl: "http://localhost:11434",
+      ollamaModel: "llama3.1:8b",
       bookTitle: ""
     },
     highlights: [],
@@ -98,7 +101,10 @@ function publicSettings(settings = getSettings()) {
   return {
     notionPageInput: settings.notionPageInput || settings.notionPageId || "",
     notionPageId: settings.notionPageId || "",
+    aiProvider: settings.aiProvider || "openai",
     openaiModel: settings.openaiModel || "gpt-4o-mini",
+    ollamaBaseUrl: settings.ollamaBaseUrl || "http://localhost:11434",
+    ollamaModel: settings.ollamaModel || "llama3.1:8b",
     bookTitle: settings.bookTitle || "",
     hasNotionToken: Boolean(settings.notionToken),
     hasOpenaiApiKey: Boolean(settings.openaiApiKey)
@@ -164,6 +170,30 @@ function sanitizeHighlightRects(rects) {
 
 function makeNotion(token) {
   return new NotionClient({ auth: token });
+}
+
+function cleanBaseUrl(url, fallback = "http://localhost:11434") {
+  const raw = String(url || "").trim() || fallback;
+  return raw.replace(/\/+$/, "");
+}
+
+function getQuestionMessages(exactText) {
+  return [
+    {
+      role: "system",
+      content: [
+        "You generate study questions from highlighted textbook passages.",
+        "Return exactly one clear question.",
+        "Do not answer the question.",
+        "Do not quote, rewrite, summarize, or modify the source passage.",
+        "Output only the question text."
+      ].join(" ")
+    },
+    {
+      role: "user",
+      content: `Highlighted passage:\n${exactText}`
+    }
+  ];
 }
 
 function plainTextBlocks(text) {
@@ -235,6 +265,14 @@ function makeToggleBlock({ question, exactText, bookTitle, pdfName, pageNumber }
 }
 
 async function generateQuestion({ exactText, settings }) {
+  if ((settings.aiProvider || "openai") === "ollama") {
+    return generateOllamaQuestion({ exactText, settings });
+  }
+
+  return generateOpenAIQuestion({ exactText, settings });
+}
+
+async function generateOpenAIQuestion({ exactText, settings }) {
   if (!settings.openaiApiKey) {
     throw new Error("OpenAI API key is missing.");
   }
@@ -243,22 +281,7 @@ async function generateQuestion({ exactText, settings }) {
   const response = await client.chat.completions.create({
     model: settings.openaiModel || "gpt-4o-mini",
     temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content: [
-          "You generate study questions from highlighted textbook passages.",
-          "Return exactly one clear question.",
-          "Do not answer the question.",
-          "Do not quote, rewrite, summarize, or modify the source passage.",
-          "Output only the question text."
-        ].join(" ")
-      },
-      {
-        role: "user",
-        content: `Highlighted passage:\n${exactText}`
-      }
-    ]
+    messages: getQuestionMessages(exactText)
   });
 
   const question = response.choices?.[0]?.message?.content?.trim();
@@ -267,6 +290,154 @@ async function generateQuestion({ exactText, settings }) {
   }
 
   return question;
+}
+
+async function generateOllamaQuestion({ exactText, settings }) {
+  const model = String(settings.ollamaModel || "llama3.1:8b").trim();
+  if (!model) {
+    throw new Error("Ollama model is missing.");
+  }
+
+  const response = await fetch(`${cleanBaseUrl(settings.ollamaBaseUrl)}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: getQuestionMessages(exactText),
+      stream: false,
+      options: {
+        temperature: 0.2
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Ollama returned HTTP ${response.status}.`);
+  }
+
+  const data = await response.json();
+  const question = data.message?.content?.trim();
+  if (!question) {
+    throw new Error("Ollama did not return a question.");
+  }
+
+  return question;
+}
+
+async function checkNotionConnection(settings) {
+  if (!settings.notionToken) {
+    return {
+      status: "missing",
+      message: "Token missing"
+    };
+  }
+
+  if (!settings.notionPageId) {
+    return {
+      status: "missing",
+      message: "Page missing"
+    };
+  }
+
+  try {
+    const notion = makeNotion(settings.notionToken);
+    await notion.blocks.children.list({
+      block_id: settings.notionPageId,
+      page_size: 1
+    });
+
+    return {
+      status: "connected",
+      message: "Connected"
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error.message || String(error)
+    };
+  }
+}
+
+async function checkOpenAIConnection(settings) {
+  if ((settings.aiProvider || "openai") === "ollama") {
+    return checkOllamaConnection(settings);
+  }
+
+  if (!settings.openaiApiKey) {
+    return {
+      status: "missing",
+      message: "API key missing"
+    };
+  }
+
+  try {
+    const client = new OpenAI({ apiKey: settings.openaiApiKey });
+    await client.models.retrieve(settings.openaiModel || "gpt-4o-mini");
+
+    return {
+      status: "connected",
+      message: "Connected"
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error.message || String(error)
+    };
+  }
+}
+
+async function checkOllamaConnection(settings) {
+  const model = String(settings.ollamaModel || "llama3.1:8b").trim();
+  if (!model) {
+    return {
+      status: "missing",
+      message: "Model missing",
+      provider: "ollama"
+    };
+  }
+
+  try {
+    const response = await fetch(`${cleanBaseUrl(settings.ollamaBaseUrl)}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model })
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body || `Ollama returned HTTP ${response.status}.`);
+    }
+
+    return {
+      status: "connected",
+      message: "Connected",
+      provider: "ollama"
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error.message || String(error),
+      provider: "ollama"
+    };
+  }
+}
+
+async function getConnectionStatus() {
+  const settings = getSettings();
+  const [notion, openai] = await Promise.all([
+    checkNotionConnection(settings),
+    checkOpenAIConnection(settings)
+  ]);
+
+  return {
+    notion,
+    openai: {
+      ...openai,
+      provider: settings.aiProvider || "openai"
+    },
+    checkedAt: new Date().toISOString()
+  };
 }
 
 async function appendToggleToNotion({ settings, question, exactText, pdfName, pageNumber }) {
@@ -534,8 +705,11 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
     notionToken: String(nextSettings.notionToken || current.notionToken || "").trim(),
     notionPageInput,
     notionPageId,
+    aiProvider: ["openai", "ollama"].includes(nextSettings.aiProvider) ? nextSettings.aiProvider : current.aiProvider || "openai",
     openaiApiKey: String(nextSettings.openaiApiKey || current.openaiApiKey || "").trim(),
     openaiModel: String(nextSettings.openaiModel || current.openaiModel || "gpt-4o-mini").trim(),
+    ollamaBaseUrl: cleanBaseUrl(nextSettings.ollamaBaseUrl || current.ollamaBaseUrl),
+    ollamaModel: String(nextSettings.ollamaModel || current.ollamaModel || "llama3.1:8b").trim(),
     bookTitle: String(nextSettings.bookTitle || "").trim()
   };
 
@@ -544,29 +718,14 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
 });
 
 ipcMain.handle("settings:validate", async () => {
-  const settings = getSettings();
+  const result = await checkNotionConnection(getSettings());
+  return result.status === "connected"
+    ? { ok: true }
+    : { ok: false, error: result.message };
+});
 
-  if (!settings.notionToken) {
-    return { ok: false, error: "Notion integration token is missing." };
-  }
-
-  if (!settings.notionPageId) {
-    return { ok: false, error: "Notion page URL or ID is invalid." };
-  }
-
-  try {
-    const notion = makeNotion(settings.notionToken);
-    await notion.blocks.children.list({
-      block_id: settings.notionPageId,
-      page_size: 1
-    });
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error.message || String(error)
-    };
-  }
+ipcMain.handle("settings:connection-status", () => {
+  return getConnectionStatus();
 });
 
 ipcMain.handle("pdf:open", async () => {

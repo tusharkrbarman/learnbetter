@@ -6,7 +6,7 @@ LearnBetter is a Windows-focused Electron PDF reader that turns highlighted PDF 
 
 - Opens a PDF in a desktop reader.
 - Lets you select text and capture it as one highlight.
-- Generates one study question using OpenAI.
+- Generates one study question using OpenAI or a local Ollama model.
 - Appends a Notion toggle block to an existing Notion page.
 - Keeps the answer exactly equal to the highlighted text.
 - Reloads saved highlights when the same PDF is opened again.
@@ -28,7 +28,9 @@ Each captured highlight appends one toggle to your chosen Notion page:
 
 1. Create an internal Notion integration and copy its token.
 2. Share your target Notion page with that integration.
-3. Create an OpenAI API key.
+3. Choose an AI provider:
+   - OpenAI API key, or
+   - Ollama running locally at `http://localhost:11434`.
 4. Install dependencies:
 
 ```powershell
@@ -44,7 +46,7 @@ npm start
 6. In the app setup panel, paste:
    - Notion integration token
    - Notion page URL or page ID
-   - OpenAI API key
+   - AI provider settings
    - optional book title
 
 ## Usage
@@ -71,5 +73,6 @@ The repository ignores `.env`, `.env.*`, certificate/key files, dependency folde
 ## Notes
 
 - ChatGPT subscriptions do not replace API keys for this app.
+- Ollama can be used for local question generation without an OpenAI API key.
 - The Notion destination is an existing page, not a database.
 - Existing captures created before Notion block IDs were stored can be removed locally, but their old Notion toggles cannot be deleted automatically.

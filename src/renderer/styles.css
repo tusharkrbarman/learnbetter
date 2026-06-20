@@ -17,7 +17,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -92,7 +93,20 @@ label {
   font-weight: 550;
 }
 
-input {
+.provider-ollama {
+  display: none;
+}
+
+body[data-ai-provider="ollama"] .provider-openai {
+  display: none;
+}
+
+body[data-ai-provider="ollama"] .provider-ollama {
+  display: block;
+}
+
+input,
+select {
   width: 100%;
   height: 34px;
   margin-top: 5px;
@@ -103,7 +117,8 @@ input {
   color: #1f2328;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #777d86;
   outline: 2px solid #e6e6e0;
   outline-offset: 1px;
@@ -237,6 +252,56 @@ input:focus {
 
 .status-line.success {
   color: #23704c;
+}
+
+.connection-status {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.connection-row {
+  display: grid;
+  grid-template-columns: 8px 48px 1fr;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #73736d;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b6b6af;
+}
+
+.status-dot.connected {
+  background: #2f8b57;
+}
+
+.status-dot.error {
+  background: #c84f42;
+}
+
+.status-dot.missing {
+  background: #c4b596;
+}
+
+.status-dot.checking {
+  background: #77808b;
+}
+
+.connection-name {
+  color: #3c3f44;
+  font-weight: 650;
+}
+
+.connection-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reader {
