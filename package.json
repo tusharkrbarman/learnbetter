@@ -31,7 +31,7 @@
     "@notionhq/client": "^5.22.0",
     "electron-store": "^8.2.0",
     "openai": "^4.77.0",
-    "pdfjs-dist": "^4.10.38"
+    "pdfjs-dist": "^6.0.227"
   },
   "devDependencies": {
     "electron": "^42.4.0"
