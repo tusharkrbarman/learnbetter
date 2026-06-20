@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  check:
+    name: Check
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check project structure
+        run: npm run check
+
+      - name: Syntax check main process
+        run: node --check src/main/main.js
+
+      - name: Syntax check preload
+        run: node --check src/main/preload.js
+
+      - name: Syntax check renderer
+        run: node --check src/renderer/renderer.mjs
+
+      - name: Audit high severity vulnerabilities
+        run: npm audit --audit-level=high
