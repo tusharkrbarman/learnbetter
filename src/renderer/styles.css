@@ -93,7 +93,8 @@ label {
   font-weight: 550;
 }
 
-.provider-ollama {
+.provider-ollama,
+.notion-oauth {
   display: none;
 }
 
@@ -102,6 +103,14 @@ body[data-ai-provider="ollama"] .provider-openai {
 }
 
 body[data-ai-provider="ollama"] .provider-ollama {
+  display: block;
+}
+
+body[data-notion-auth="oauth"] .notion-token {
+  display: none;
+}
+
+body[data-notion-auth="oauth"] .notion-oauth {
   display: block;
 }
 
@@ -252,6 +261,24 @@ select:focus {
 
 .status-line.success {
   color: #23704c;
+}
+
+.field-note {
+  margin: -3px 0 10px;
+  color: #73736d;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.oauth-actions {
+  display: none;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin: 10px 0 3px;
+}
+
+body[data-notion-auth="oauth"] .oauth-actions {
+  display: grid;
 }
 
 .connection-status {

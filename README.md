@@ -26,8 +26,10 @@ Each captured highlight appends one toggle to your chosen Notion page:
 
 ## Setup
 
-1. Create an internal Notion integration and copy its token.
-2. Share your target Notion page with that integration.
+1. Choose a Notion connection method:
+   - Internal token: create an internal Notion integration, copy its token, and share your target page with it.
+   - OAuth: create a public Notion integration, add `http://127.0.0.1:45891/notion/callback` as a redirect URI, then use Connect Notion in the app.
+2. Paste the destination Notion page link or page ID.
 3. Choose an AI provider:
    - OpenAI API key, or
    - Ollama running locally at `http://localhost:11434`.
@@ -44,10 +46,16 @@ npm start
 ```
 
 6. In the app setup panel, paste:
-   - Notion integration token
+   - Notion token, or OAuth client ID/client secret
    - Notion page URL or page ID
    - AI provider settings
    - optional book title
+
+## Notion OAuth Notes
+
+OAuth replaces manually pasting an internal integration token. It opens Notion in your browser, lets you pick pages to share with the public integration, then stores the returned access token locally.
+
+Notion's OAuth page picker grants access to selected pages, but it does not normally return the ID of an existing selected page. LearnBetter still asks for the destination page link or ID so it knows where to append toggles. If your public integration uses Notion's optional template duplication flow, LearnBetter can use the duplicated template page ID returned by OAuth.
 
 ## Usage
 

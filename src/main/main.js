@@ -1,7 +1,8 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const crypto = require("node:crypto");
+const http = require("node:http");
 const Store = require("electron-store");
 const { Client: NotionClient } = require("@notionhq/client");
 const OpenAI = require("openai");
@@ -9,14 +10,22 @@ const OpenAI = require("openai");
 const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
 const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
+const DEFAULT_NOTION_REDIRECT_URI = "http://127.0.0.1:45891/notion/callback";
 
 const store = new Store({
   name: "learnbetter",
   defaults: {
     settings: {
+      notionAuthMode: "token",
       notionToken: "",
       notionPageId: "",
       notionPageInput: "",
+      notionOAuthClientId: "",
+      notionOAuthClientSecret: "",
+      notionOAuthRedirectUri: DEFAULT_NOTION_REDIRECT_URI,
+      notionOAuthRefreshToken: "",
+      notionOAuthBotId: "",
+      notionOAuthWorkspaceName: "",
       aiProvider: "openai",
       openaiApiKey: "",
       openaiModel: "gpt-4o-mini",
@@ -113,14 +122,20 @@ function getDeleteQueue() {
 
 function publicSettings(settings = getSettings()) {
   return {
+    notionAuthMode: settings.notionAuthMode || "token",
     notionPageInput: settings.notionPageInput || settings.notionPageId || "",
     notionPageId: settings.notionPageId || "",
+    notionOAuthClientId: settings.notionOAuthClientId || "",
+    notionOAuthRedirectUri: settings.notionOAuthRedirectUri || DEFAULT_NOTION_REDIRECT_URI,
+    notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
     aiProvider: settings.aiProvider || "openai",
     openaiModel: settings.openaiModel || "gpt-4o-mini",
     ollamaBaseUrl: settings.ollamaBaseUrl || "http://localhost:11434",
     ollamaModel: settings.ollamaModel || "llama3.1:8b",
     bookTitle: settings.bookTitle || "",
     hasNotionToken: Boolean(settings.notionToken),
+    hasNotionOAuthSecret: Boolean(settings.notionOAuthClientSecret),
+    hasNotionOAuthToken: Boolean(settings.notionToken && isOAuthMode(settings)),
     hasOpenaiApiKey: Boolean(settings.openaiApiKey)
   };
 }
@@ -186,9 +201,202 @@ function makeNotion(token) {
   return new NotionClient({ auth: token });
 }
 
+async function getSettingsForNotionRequest() {
+  const settings = getSettings();
+  if (!isOAuthMode(settings) || !settings.notionOAuthRefreshToken) {
+    return settings;
+  }
+
+  return refreshNotionOAuthToken(settings);
+}
+
 function cleanBaseUrl(url, fallback = "http://localhost:11434") {
   const raw = String(url || "").trim() || fallback;
   return raw.replace(/\/+$/, "");
+}
+
+function cleanRedirectUri(value) {
+  return String(value || DEFAULT_NOTION_REDIRECT_URI).trim() || DEFAULT_NOTION_REDIRECT_URI;
+}
+
+function isOAuthMode(settings = getSettings()) {
+  return (settings.notionAuthMode || "token") === "oauth";
+}
+
+function encodeBasicAuth(clientId, clientSecret) {
+  return Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+}
+
+function getNotionOAuthCredentials(settings = getSettings()) {
+  const clientId = String(settings.notionOAuthClientId || "").trim();
+  const clientSecret = String(settings.notionOAuthClientSecret || "").trim();
+  const redirectUri = cleanRedirectUri(settings.notionOAuthRedirectUri);
+
+  if (!clientId) {
+    throw new Error("Notion OAuth client ID is missing.");
+  }
+
+  if (!clientSecret) {
+    throw new Error("Notion OAuth client secret is missing.");
+  }
+
+  return { clientId, clientSecret, redirectUri };
+}
+
+function getNotionAuthUrl({ clientId, redirectUri, state }) {
+  const url = new URL("https://api.notion.com/v1/oauth/authorize");
+  url.searchParams.set("owner", "user");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+async function requestNotionOAuthToken({ clientId, clientSecret, body }) {
+  const response = await fetch("https://api.notion.com/v1/oauth/token", {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "Authorization": `Basic ${encodeBasicAuth(clientId, clientSecret)}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  const data = await response.json().catch(async () => ({
+    error: await response.text().catch(() => "")
+  }));
+
+  if (!response.ok) {
+    throw new Error(data.error_description || data.error || `Notion OAuth returned HTTP ${response.status}.`);
+  }
+
+  if (!data.access_token) {
+    throw new Error("Notion OAuth did not return an access token.");
+  }
+
+  return data;
+}
+
+async function exchangeNotionOAuthCode({ code, clientId, clientSecret, redirectUri }) {
+  return requestNotionOAuthToken({
+    clientId,
+    clientSecret,
+    body: {
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri
+    }
+  });
+}
+
+async function refreshNotionOAuthToken(settings = getSettings()) {
+  if (!settings.notionOAuthRefreshToken) {
+    return settings;
+  }
+
+  const { clientId, clientSecret } = getNotionOAuthCredentials(settings);
+  const data = await requestNotionOAuthToken({
+    clientId,
+    clientSecret,
+    body: {
+      grant_type: "refresh_token",
+      refresh_token: settings.notionOAuthRefreshToken
+    }
+  });
+
+  const next = {
+    ...settings,
+    notionToken: data.access_token || settings.notionToken,
+    notionOAuthRefreshToken: data.refresh_token || settings.notionOAuthRefreshToken,
+    notionOAuthBotId: data.bot_id || settings.notionOAuthBotId,
+    notionOAuthWorkspaceName: data.workspace_name || settings.notionOAuthWorkspaceName
+  };
+
+  store.set("settings", next);
+  return next;
+}
+
+function respondToOAuthBrowser(response, title, body) {
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  response.end(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 48px; line-height: 1.5; color: #1f2328; }
+      h1 { font-size: 22px; }
+    </style>
+  </head>
+  <body>
+    <h1>${title}</h1>
+    <p>${body}</p>
+  </body>
+</html>`);
+}
+
+function waitForNotionOAuthCallback({ redirectUri, state }) {
+  const parsed = new URL(redirectUri);
+  const port = Number(parsed.port);
+  const expectedPath = parsed.pathname || "/";
+
+  if (!["127.0.0.1", "localhost"].includes(parsed.hostname) || !Number.isInteger(port)) {
+    throw new Error("Use a localhost redirect URI, for example http://127.0.0.1:45891/notion/callback.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      server.close();
+      reject(new Error("Notion OAuth timed out before the callback arrived."));
+    }, 120000);
+
+    const server = http.createServer((request, response) => {
+      const callbackUrl = new URL(request.url, redirectUri);
+
+      if (callbackUrl.pathname !== expectedPath) {
+        response.writeHead(404);
+        response.end("Not found");
+        return;
+      }
+
+      const callbackState = callbackUrl.searchParams.get("state");
+      const code = callbackUrl.searchParams.get("code");
+      const error = callbackUrl.searchParams.get("error");
+
+      clearTimeout(timeout);
+      server.close();
+
+      if (callbackState !== state) {
+        respondToOAuthBrowser(response, "LearnBetter", "OAuth state did not match. You can close this tab and try again.");
+        reject(new Error("Notion OAuth state mismatch."));
+        return;
+      }
+
+      if (error) {
+        respondToOAuthBrowser(response, "LearnBetter", "Notion connection was cancelled. You can close this tab.");
+        reject(new Error(`Notion OAuth failed: ${error}`));
+        return;
+      }
+
+      if (!code) {
+        respondToOAuthBrowser(response, "LearnBetter", "Notion did not return an authorization code. You can close this tab.");
+        reject(new Error("Notion OAuth did not return an authorization code."));
+        return;
+      }
+
+      respondToOAuthBrowser(response, "LearnBetter connected", "Return to LearnBetter to finish setup.");
+      resolve(code);
+    });
+
+    server.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    server.listen(port, parsed.hostname);
+  });
 }
 
 function getQuestionMessages(exactText) {
@@ -340,10 +548,14 @@ async function generateOllamaQuestion({ exactText, settings }) {
 }
 
 async function checkNotionConnection(settings) {
+  if (isOAuthMode(settings) && settings.notionOAuthRefreshToken) {
+    settings = await refreshNotionOAuthToken(settings);
+  }
+
   if (!settings.notionToken) {
     return {
       status: "missing",
-      message: "Token missing"
+      message: isOAuthMode(settings) ? "OAuth not connected" : "Token missing"
     };
   }
 
@@ -545,7 +757,7 @@ function updateHighlightStatus(hash, updates) {
 }
 
 async function processCapture(payload) {
-  const settings = getSettings();
+  const settings = await getSettingsForNotionRequest();
   const exactText = String(payload.exactText || "");
   const pdfName = String(payload.pdfName || "Untitled PDF");
   const pageNumber = Number(payload.pageNumber || 1);
@@ -640,7 +852,7 @@ async function processCapture(payload) {
 }
 
 async function processDeleteCapture(hash) {
-  const settings = getSettings();
+  const settings = await getSettingsForNotionRequest();
   const record = getHighlights().find((item) => item.hash === hash) || getDeleteQueue().find((item) => item.hash === hash);
 
   if (!record) {
@@ -713,12 +925,21 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
   const current = getSettings();
   const notionPageInput = String(nextSettings.notionPageInput || "").trim();
   const notionPageId = normalizeNotionPageId(notionPageInput);
+  const notionAuthMode = ["token", "oauth"].includes(nextSettings.notionAuthMode)
+    ? nextSettings.notionAuthMode
+    : current.notionAuthMode || "token";
 
   const merged = {
     ...current,
-    notionToken: String(nextSettings.notionToken || current.notionToken || "").trim(),
+    notionAuthMode,
+    notionToken: notionAuthMode === "token"
+      ? String(nextSettings.notionToken || current.notionToken || "").trim()
+      : current.notionToken || "",
     notionPageInput,
     notionPageId,
+    notionOAuthClientId: String(nextSettings.notionOAuthClientId || current.notionOAuthClientId || "").trim(),
+    notionOAuthClientSecret: String(nextSettings.notionOAuthClientSecret || current.notionOAuthClientSecret || "").trim(),
+    notionOAuthRedirectUri: cleanRedirectUri(nextSettings.notionOAuthRedirectUri || current.notionOAuthRedirectUri),
     aiProvider: ["openai", "ollama"].includes(nextSettings.aiProvider) ? nextSettings.aiProvider : current.aiProvider || "openai",
     openaiApiKey: String(nextSettings.openaiApiKey || current.openaiApiKey || "").trim(),
     openaiModel: String(nextSettings.openaiModel || current.openaiModel || "gpt-4o-mini").trim(),
@@ -729,6 +950,66 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
 
   store.set("settings", merged);
   return publicSettings(merged);
+});
+
+ipcMain.handle("settings:notion-oauth-start", async (_event, nextSettings) => {
+  const current = getSettings();
+  const notionPageInput = String(nextSettings?.notionPageInput || current.notionPageInput || "").trim();
+  const settings = {
+    ...current,
+    notionAuthMode: "oauth",
+    notionPageInput,
+    notionPageId: normalizeNotionPageId(notionPageInput),
+    notionOAuthClientId: String(nextSettings?.notionOAuthClientId || current.notionOAuthClientId || "").trim(),
+    notionOAuthClientSecret: String(nextSettings?.notionOAuthClientSecret || current.notionOAuthClientSecret || "").trim(),
+    notionOAuthRedirectUri: cleanRedirectUri(nextSettings?.notionOAuthRedirectUri || current.notionOAuthRedirectUri)
+  };
+  const { clientId, clientSecret, redirectUri } = getNotionOAuthCredentials(settings);
+  const state = crypto.randomBytes(24).toString("hex");
+  const callbackPromise = waitForNotionOAuthCallback({ redirectUri, state });
+  const authUrl = getNotionAuthUrl({ clientId, redirectUri, state });
+
+  store.set("settings", settings);
+  await shell.openExternal(authUrl);
+
+  const code = await callbackPromise;
+  const data = await exchangeNotionOAuthCode({
+    code,
+    clientId,
+    clientSecret,
+    redirectUri
+  });
+
+  const next = {
+    ...getSettings(),
+    notionAuthMode: "oauth",
+    notionToken: data.access_token || "",
+    notionOAuthRefreshToken: data.refresh_token || "",
+    notionOAuthBotId: data.bot_id || "",
+    notionOAuthWorkspaceName: data.workspace_name || ""
+  };
+
+  if (!next.notionPageId && data.duplicated_template_id) {
+    next.notionPageId = normalizeNotionPageId(data.duplicated_template_id);
+    next.notionPageInput = next.notionPageId;
+  }
+
+  store.set("settings", next);
+  return publicSettings(next);
+});
+
+ipcMain.handle("settings:notion-oauth-disconnect", async () => {
+  const current = getSettings();
+  const next = {
+    ...current,
+    notionToken: "",
+    notionOAuthRefreshToken: "",
+    notionOAuthBotId: "",
+    notionOAuthWorkspaceName: ""
+  };
+
+  store.set("settings", next);
+  return publicSettings(next);
 });
 
 ipcMain.handle("settings:validate", async () => {

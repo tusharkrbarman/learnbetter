@@ -24,14 +24,43 @@
           </div>
 
           <label>
+            Notion connection
+            <select id="notionAuthMode">
+              <option value="token">Internal token</option>
+              <option value="oauth">OAuth</option>
+            </select>
+          </label>
+
+          <label class="notion-field notion-token">
             Notion token
             <input id="notionToken" type="password" autocomplete="off" placeholder="secret_...">
           </label>
+
+          <label class="notion-field notion-oauth">
+            OAuth client ID
+            <input id="notionOAuthClientId" type="text" autocomplete="off" placeholder="Public integration client ID">
+          </label>
+
+          <label class="notion-field notion-oauth">
+            OAuth client secret
+            <input id="notionOAuthClientSecret" type="password" autocomplete="off" placeholder="OAuth client secret">
+          </label>
+
+          <label class="notion-field notion-oauth">
+            OAuth redirect URI
+            <input id="notionOAuthRedirectUri" type="url" autocomplete="off" value="http://127.0.0.1:45891/notion/callback">
+          </label>
+
+          <div class="notion-field notion-oauth oauth-actions">
+            <button id="connectNotionOAuth" class="secondary-button" type="button">Connect Notion</button>
+            <button id="disconnectNotionOAuth" class="icon-button" type="button">Disconnect</button>
+          </div>
 
           <label>
             Notion page link or ID
             <input id="notionPageInput" type="text" autocomplete="off" placeholder="https://www.notion.so/...">
           </label>
+          <p class="field-note notion-field notion-oauth">OAuth grants page access, but LearnBetter still needs the destination page link unless your integration duplicates a template page.</p>
 
           <label>
             AI provider

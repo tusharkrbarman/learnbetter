@@ -9,7 +9,13 @@ import {
 pdfjsLib.GlobalWorkerOptions.workerSrc = "../../node_modules/pdfjs-dist/build/pdf.worker.mjs";
 
 const els = {
+  notionAuthMode: document.querySelector("#notionAuthMode"),
   notionToken: document.querySelector("#notionToken"),
+  notionOAuthClientId: document.querySelector("#notionOAuthClientId"),
+  notionOAuthClientSecret: document.querySelector("#notionOAuthClientSecret"),
+  notionOAuthRedirectUri: document.querySelector("#notionOAuthRedirectUri"),
+  connectNotionOAuth: document.querySelector("#connectNotionOAuth"),
+  disconnectNotionOAuth: document.querySelector("#disconnectNotionOAuth"),
   notionPageInput: document.querySelector("#notionPageInput"),
   aiProvider: document.querySelector("#aiProvider"),
   openaiApiKey: document.querySelector("#openaiApiKey"),
@@ -95,6 +101,10 @@ function updateProviderFields() {
   els.aiStatusName.textContent = getSelectedProviderLabel(provider);
 }
 
+function updateNotionFields() {
+  document.body.dataset.notionAuth = els.notionAuthMode.value;
+}
+
 function setConnectionChecking() {
   setProviderStatus("notion", "checking");
   setProviderStatus("openai", "checking");
@@ -131,6 +141,8 @@ function setBusy(isBusy) {
   els.saveSettings.disabled = isBusy;
   els.validateSettings.disabled = isBusy;
   els.retryQueue.disabled = isBusy;
+  els.connectNotionOAuth.disabled = isBusy;
+  els.disconnectNotionOAuth.disabled = isBusy;
   updateFindControls(isBusy);
   updateZoomControls(isBusy);
 }
@@ -241,14 +253,19 @@ function rememberSessionCapture(record) {
 async function loadSettings() {
   const settings = await window.notionPdf.getSettings();
 
+  els.notionAuthMode.value = settings.notionAuthMode || "token";
   els.notionPageInput.value = settings.notionPageInput || "";
+  els.notionOAuthClientId.value = settings.notionOAuthClientId || "";
+  els.notionOAuthRedirectUri.value = settings.notionOAuthRedirectUri || "http://127.0.0.1:45891/notion/callback";
   els.aiProvider.value = settings.aiProvider || "openai";
   els.openaiModel.value = settings.openaiModel || "gpt-4o-mini";
   els.ollamaBaseUrl.value = settings.ollamaBaseUrl || "http://localhost:11434";
   els.ollamaModel.value = settings.ollamaModel || "llama3.1:8b";
   els.bookTitle.value = settings.bookTitle || "";
   els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
+  els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
   els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
+  updateNotionFields();
   updateProviderFields();
 }
 
@@ -258,7 +275,11 @@ async function saveSettings() {
 
   try {
     const settings = await window.notionPdf.saveSettings({
+      notionAuthMode: els.notionAuthMode.value,
       notionToken: els.notionToken.value,
+      notionOAuthClientId: els.notionOAuthClientId.value,
+      notionOAuthClientSecret: els.notionOAuthClientSecret.value,
+      notionOAuthRedirectUri: els.notionOAuthRedirectUri.value,
       notionPageInput: els.notionPageInput.value,
       aiProvider: els.aiProvider.value,
       openaiApiKey: els.openaiApiKey.value,
@@ -269,10 +290,56 @@ async function saveSettings() {
     });
 
     els.notionToken.value = "";
+    els.notionOAuthClientSecret.value = "";
     els.openaiApiKey.value = "";
     els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
+    els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
     els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
-    setStatus("Setup saved.", "success");
+    setStatus(settings.notionAuthMode === "oauth" && !settings.hasNotionOAuthToken ? "OAuth setup saved. Connect Notion next." : "Setup saved.", "success");
+    await refreshConnectionStatus();
+  } catch (error) {
+    setStatus(error.message || String(error), "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function connectNotionOAuth() {
+  setBusy(true);
+  setStatus("Opening Notion OAuth...");
+
+  try {
+    const settings = await window.notionPdf.connectNotionOAuth({
+      notionOAuthClientId: els.notionOAuthClientId.value,
+      notionOAuthClientSecret: els.notionOAuthClientSecret.value,
+      notionOAuthRedirectUri: els.notionOAuthRedirectUri.value,
+      notionPageInput: els.notionPageInput.value
+    });
+
+    els.notionAuthMode.value = "oauth";
+    els.notionPageInput.value = settings.notionPageInput || els.notionPageInput.value;
+    els.notionOAuthClientId.value = settings.notionOAuthClientId || els.notionOAuthClientId.value;
+    els.notionOAuthClientSecret.value = "";
+    els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
+    updateNotionFields();
+    setStatus(settings.notionPageId ? `Connected to Notion${settings.notionOAuthWorkspaceName ? ` workspace: ${settings.notionOAuthWorkspaceName}` : ""}.` : "Connected to Notion. Add the destination page link, then save setup.", "success");
+    await refreshConnectionStatus();
+  } catch (error) {
+    setStatus(error.message || String(error), "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function disconnectNotionOAuth() {
+  setBusy(true);
+  setStatus("Disconnecting Notion OAuth...");
+
+  try {
+    const settings = await window.notionPdf.disconnectNotionOAuth();
+    els.notionOAuthClientSecret.value = "";
+    els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
+    setStatus("Notion OAuth disconnected locally.", "success");
     await refreshConnectionStatus();
   } catch (error) {
     setStatus(error.message || String(error), "error");
@@ -876,6 +943,12 @@ async function retryQueue() {
 
 els.saveSettings.addEventListener("click", saveSettings);
 els.validateSettings.addEventListener("click", validateSettings);
+els.notionAuthMode.addEventListener("change", () => {
+  updateNotionFields();
+  setProviderStatus("notion", "missing", "Save setup to check");
+});
+els.connectNotionOAuth.addEventListener("click", connectNotionOAuth);
+els.disconnectNotionOAuth.addEventListener("click", disconnectNotionOAuth);
 els.aiProvider.addEventListener("change", () => {
   updateProviderFields();
   setProviderStatus("openai", "missing", "Save setup to check");
