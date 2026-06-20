@@ -34,7 +34,7 @@
     "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
-    "electron": "^42.4.0"
+    "electron": "^42.4.1"
   },
   "build": {
     "appId": "com.tusharkrbarman.learnbetter",
