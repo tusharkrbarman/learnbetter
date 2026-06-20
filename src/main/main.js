@@ -3,7 +3,7 @@ const path = require("node:path");
 const fs = require("node:fs/promises");
 const crypto = require("node:crypto");
 const http = require("node:http");
-const Store = require("electron-store");
+const ElectronStore = require("electron-store");
 const { Client: NotionClient } = require("@notionhq/client");
 const OpenAI = require("openai");
 
@@ -11,6 +11,10 @@ const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
 const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
 const DEFAULT_NOTION_REDIRECT_URI = "http://127.0.0.1:45891/notion/callback";
+const Store = ElectronStore.default || ElectronStore;
+
+app.setName(APP_NAME);
+app.setAppUserModelId(APP_ID);
 
 const store = new Store({
   name: "learnbetter",
