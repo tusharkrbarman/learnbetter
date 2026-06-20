@@ -3,10 +3,28 @@
   "productName": "LearnBetter",
   "version": "0.1.0",
   "description": "Windows desktop PDF reader that turns highlights into Notion study toggles.",
+  "author": "Tushar Barman",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/tusharkrbarman/learnbetter#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tusharkrbarman/learnbetter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tusharkrbarman/learnbetter/issues"
+  },
+  "keywords": [
+    "electron",
+    "pdf",
+    "notion",
+    "study",
+    "ollama"
+  ],
   "main": "src/main/main.js",
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
+    "icons": "node scripts/generate-icons.js",
     "check": "node scripts/check-project.js"
   },
   "dependencies": {
@@ -17,5 +35,18 @@
   },
   "devDependencies": {
     "electron": "^42.4.0"
+  },
+  "build": {
+    "appId": "com.tusharkrbarman.learnbetter",
+    "productName": "LearnBetter",
+    "files": [
+      "assets/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icons/icon.ico",
+      "target": "nsis"
+    }
   }
 }

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="LearnBetter app icon">
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="#172033"/>
+  <rect x="55" y="38" width="150" height="180" rx="18" fill="#f8fafc"/>
+  <path d="M70 38h22v180H70c-8.284 0-15-6.716-15-15V53c0-8.284 6.716-15 15-15z" fill="#e2e8f0"/>
+  <path d="M182 38h20v72l-10-8-10 8V38z" fill="#3b82f6"/>
+  <rect x="82" y="82" width="92" height="14" rx="7" fill="#f6d76b"/>
+  <rect x="82" y="118" width="76" height="14" rx="7" fill="#f6d76b"/>
+  <rect x="82" y="154" width="96" height="14" rx="7" fill="#f6d76b"/>
+  <rect x="82" y="184" width="66" height="8" rx="4" fill="#94a3b8"/>
+  <path d="M111 62h44" stroke="#172033" stroke-width="10" stroke-linecap="round"/>
+</svg>

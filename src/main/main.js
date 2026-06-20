@@ -6,6 +6,10 @@ const Store = require("electron-store");
 const { Client: NotionClient } = require("@notionhq/client");
 const OpenAI = require("openai");
 
+const APP_NAME = "LearnBetter";
+const APP_ID = "com.tusharkrbarman.learnbetter";
+const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
+
 const store = new Store({
   name: "learnbetter",
   defaults: {
@@ -32,7 +36,8 @@ function createWindow() {
     height: 860,
     minWidth: 980,
     minHeight: 680,
-    title: "LearnBetter",
+    title: APP_NAME,
+    icon: APP_ICON,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -44,6 +49,15 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  app.setName(APP_NAME);
+  app.setAppUserModelId(APP_ID);
+  app.setAboutPanelOptions({
+    applicationName: APP_NAME,
+    applicationVersion: app.getVersion(),
+    copyright: "Copyright (c) 2026 Tushar Barman",
+    iconPath: APP_ICON
+  });
+
   createWindow();
 
   app.on("activate", () => {

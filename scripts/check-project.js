@@ -7,7 +7,10 @@ const required = [
   "src/main/preload.js",
   "src/renderer/index.html",
   "src/renderer/renderer.mjs",
-  "src/renderer/styles.css"
+  "src/renderer/styles.css",
+  "assets/icons/icon.svg",
+  "assets/icons/icon.png",
+  "assets/icons/icon.ico"
 ];
 
 const missing = required.filter((file) => {
