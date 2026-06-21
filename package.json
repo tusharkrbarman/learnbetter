@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Windows desktop PDF reader that turns highlights into Notion study toggles.",
   "author": "Tushar Barman",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://github.com/tusharkrbarman/learnbetter#readme",
   "repository": {
     "type": "git",
@@ -16,9 +16,17 @@
   "keywords": [
     "electron",
     "pdf",
+    "pdf-reader",
+    "pdf-highlights",
     "notion",
+    "notion-api",
+    "notion-integration",
+    "ai-study-app",
+    "ai-flashcards",
     "study",
-    "ollama"
+    "ollama",
+    "openai",
+    "windows"
   ],
   "main": "src/main/main.js",
   "type": "commonjs",
