@@ -168,7 +168,7 @@ Tech stack:
 - Electron
 - PDF.js
 - Notion API
-- OpenAI SDK
+- OpenAI API
 - Ollama API
 - electron-store
 - electron-builder

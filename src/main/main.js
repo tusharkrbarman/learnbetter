@@ -5,12 +5,12 @@ const crypto = require("node:crypto");
 const http = require("node:http");
 const ElectronStore = require("electron-store");
 const { Client: NotionClient } = require("@notionhq/client");
-const OpenAI = require("openai");
 
 const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
 const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
 const DEFAULT_NOTION_REDIRECT_URI = "http://127.0.0.1:45891/notion/callback";
+const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 const Store = ElectronStore.default || ElectronStore;
 
 app.setName(APP_NAME);
@@ -503,11 +503,15 @@ async function generateOpenAIQuestion({ exactText, settings }) {
     throw new Error("OpenAI API key is missing.");
   }
 
-  const client = new OpenAI({ apiKey: settings.openaiApiKey });
-  const response = await client.chat.completions.create({
-    model: settings.openaiModel || "gpt-4o-mini",
-    temperature: 0.2,
-    messages: getQuestionMessages(exactText)
+  const response = await requestOpenAI({
+    apiKey: settings.openaiApiKey,
+    path: "/chat/completions",
+    method: "POST",
+    body: {
+      model: settings.openaiModel || "gpt-4o-mini",
+      temperature: 0.2,
+      messages: getQuestionMessages(exactText)
+    }
   });
 
   const question = response.choices?.[0]?.message?.content?.trim();
@@ -516,6 +520,28 @@ async function generateOpenAIQuestion({ exactText, settings }) {
   }
 
   return question;
+}
+
+async function requestOpenAI({ apiKey, path: requestPath, method = "GET", body }) {
+  const response = await fetch(`${OPENAI_API_BASE_URL}${requestPath}`, {
+    method,
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : { error: { message: await response.text() } };
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || `OpenAI returned HTTP ${response.status}.`);
+  }
+
+  return data;
 }
 
 async function generateOllamaQuestion({ exactText, settings }) {
@@ -602,8 +628,11 @@ async function checkOpenAIConnection(settings) {
   }
 
   try {
-    const client = new OpenAI({ apiKey: settings.openaiApiKey });
-    await client.models.retrieve(settings.openaiModel || "gpt-4o-mini");
+    const model = encodeURIComponent(settings.openaiModel || "gpt-4o-mini");
+    await requestOpenAI({
+      apiKey: settings.openaiApiKey,
+      path: `/models/${model}`
+    });
 
     return {
       status: "connected",

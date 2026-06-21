@@ -39,7 +39,6 @@
   "dependencies": {
     "@notionhq/client": "^5.22.0",
     "electron-store": "^11.0.2",
-    "openai": "^4.77.0",
     "pdfjs-dist": "^6.0.227"
   },
   "devDependencies": {
