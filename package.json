@@ -25,7 +25,8 @@
   "scripts": {
     "start": "electron .",
     "icons": "node scripts/generate-icons.js",
-    "check": "node scripts/check-project.js"
+    "check": "node scripts/check-project.js",
+    "dist:win": "electron-builder --win nsis"
   },
   "dependencies": {
     "@notionhq/client": "^5.22.0",
@@ -34,7 +35,8 @@
     "pdfjs-dist": "^6.0.227"
   },
   "devDependencies": {
-    "electron": "^42.4.1"
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "com.tusharkrbarman.learnbetter",

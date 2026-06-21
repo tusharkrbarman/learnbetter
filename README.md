@@ -68,9 +68,18 @@ Notion's OAuth page picker grants access to selected pages, but it does not norm
 
 ```powershell
 npm run check
+npm run dist:win
 ```
 
 Checks that required project files exist.
+
+`npm run dist:win` builds a Windows NSIS installer in `dist/`.
+
+## Installer Artifacts
+
+The `Build Windows Installer` GitHub Actions workflow builds the Windows `.exe` installer and uploads it as the `learnbetter-windows-installer` artifact.
+
+Run it from GitHub with **Actions > Build Windows Installer > Run workflow**. It also runs automatically when a version tag like `v0.1.0` is pushed.
 
 ## Privacy And Secrets
 
