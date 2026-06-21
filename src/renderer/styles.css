@@ -3,6 +3,7 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #f7f7f5;
   color: #1f2328;
+  --sidebar-width: 320px;
 }
 
 * {
@@ -24,7 +25,7 @@ select {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: var(--sidebar-width) 1px minmax(0, 1fr);
   height: 100vh;
   min-height: 0;
 }
@@ -35,9 +36,53 @@ select {
   flex-direction: column;
   gap: 22px;
   padding: 22px 20px;
-  border-right: 1px solid #deded9;
   background: #fbfbfa;
   overflow-y: auto;
+}
+
+.sidebar-resize-handle {
+  position: relative;
+  z-index: 5;
+  width: 1px;
+  background: #deded9;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  right: -5px;
+  background: transparent;
+}
+
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 3px;
+  background: transparent;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after,
+body.is-resizing-sidebar .sidebar-resize-handle::after {
+  background: #9ca3af;
+}
+
+.sidebar-resize-handle:focus-visible {
+  outline: 2px solid #777d86;
+  outline-offset: -2px;
+}
+
+body.is-resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .brand h1 {

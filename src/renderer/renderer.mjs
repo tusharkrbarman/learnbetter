@@ -43,6 +43,7 @@ const els = {
   fitPage: document.querySelector("#fitPage"),
   retryQueue: document.querySelector("#retryQueue"),
   captureList: document.querySelector("#captureList"),
+  sidebarResizeHandle: document.querySelector("#sidebarResizeHandle"),
   pdfName: document.querySelector("#pdfName"),
   pageMeta: document.querySelector("#pageMeta"),
   emptyState: document.querySelector("#emptyState"),
@@ -70,12 +71,102 @@ const ZOOM_MIN = 0.75;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.15;
 const ZOOM_DEFAULT = 1.35;
+const SIDEBAR_MIN_WIDTH = 280;
+const SIDEBAR_MAX_WIDTH = 560;
+const SIDEBAR_DEFAULT_WIDTH = 320;
+const SIDEBAR_READER_MIN_WIDTH = 520;
+const SIDEBAR_STORAGE_KEY = "learnbetter.sidebarWidth";
 const CONNECTION_LABELS = {
   connected: "Connected",
   error: "Error",
   missing: "Not configured",
   checking: "Checking..."
 };
+
+function clampSidebarWidth(width) {
+  const number = Number(width);
+  const maxWidth = getSidebarMaxWidth();
+
+  if (!Number.isFinite(number)) {
+    return Math.min(SIDEBAR_DEFAULT_WIDTH, maxWidth);
+  }
+
+  return Math.min(Math.max(Math.round(number), SIDEBAR_MIN_WIDTH), maxWidth);
+}
+
+function getSidebarMaxWidth() {
+  const viewportLimit = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - SIDEBAR_READER_MIN_WIDTH);
+  return Math.min(SIDEBAR_MAX_WIDTH, viewportLimit);
+}
+
+function setSidebarWidth(width, { persist = true } = {}) {
+  const nextWidth = clampSidebarWidth(width);
+  document.documentElement.style.setProperty("--sidebar-width", `${nextWidth}px`);
+  els.sidebarResizeHandle.setAttribute("aria-valuenow", String(nextWidth));
+  els.sidebarResizeHandle.setAttribute("aria-valuemax", String(getSidebarMaxWidth()));
+
+  if (persist) {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextWidth));
+  }
+
+  if (state.pdfViewer) {
+    redrawVisualHighlightsSoon();
+  }
+}
+
+function loadSidebarWidth() {
+  const savedWidth = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+  setSidebarWidth(savedWidth || SIDEBAR_DEFAULT_WIDTH, { persist: Boolean(savedWidth) });
+}
+
+function beginSidebarResize(event) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  event.preventDefault();
+  document.body.classList.add("is-resizing-sidebar");
+  els.sidebarResizeHandle.setPointerCapture(event.pointerId);
+}
+
+function resizeSidebar(event) {
+  if (!els.sidebarResizeHandle.hasPointerCapture(event.pointerId)) {
+    return;
+  }
+
+  setSidebarWidth(event.clientX);
+}
+
+function endSidebarResize(event) {
+  if (els.sidebarResizeHandle.hasPointerCapture(event.pointerId)) {
+    els.sidebarResizeHandle.releasePointerCapture(event.pointerId);
+  }
+
+  document.body.classList.remove("is-resizing-sidebar");
+}
+
+function handleSidebarResizeKeydown(event) {
+  const currentWidth = Number(els.sidebarResizeHandle.getAttribute("aria-valuenow")) || SIDEBAR_DEFAULT_WIDTH;
+  const step = event.shiftKey ? 40 : 16;
+  let nextWidth = currentWidth;
+
+  if (event.key === "ArrowLeft") {
+    nextWidth -= step;
+  } else if (event.key === "ArrowRight") {
+    nextWidth += step;
+  } else if (event.key === "Home") {
+    nextWidth = SIDEBAR_MIN_WIDTH;
+  } else if (event.key === "End") {
+    nextWidth = SIDEBAR_MAX_WIDTH;
+  } else if (event.key === "Enter" || event.key === " ") {
+    nextWidth = SIDEBAR_DEFAULT_WIDTH;
+  } else {
+    return;
+  }
+
+  event.preventDefault();
+  setSidebarWidth(nextWidth);
+}
 
 function setStatus(message, type = "") {
   els.settingsStatus.textContent = message;
@@ -970,6 +1061,17 @@ els.zoomIn.addEventListener("click", zoomIn);
 els.fitWidth.addEventListener("click", fitWidth);
 els.fitPage.addEventListener("click", fitPage);
 els.retryQueue.addEventListener("click", retryQueue);
+els.sidebarResizeHandle.addEventListener("pointerdown", beginSidebarResize);
+els.sidebarResizeHandle.addEventListener("pointermove", resizeSidebar);
+els.sidebarResizeHandle.addEventListener("pointerup", endSidebarResize);
+els.sidebarResizeHandle.addEventListener("pointercancel", endSidebarResize);
+els.sidebarResizeHandle.addEventListener("lostpointercapture", () => {
+  document.body.classList.remove("is-resizing-sidebar");
+});
+els.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
+els.sidebarResizeHandle.addEventListener("dblclick", () => {
+  setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+});
 els.captureList.addEventListener("click", (event) => {
   const removeButton = event.target.closest(".remove-capture");
   if (removeButton) {
@@ -985,7 +1087,11 @@ els.pdfContainer.addEventListener("scroll", () => {
   }
 });
 document.addEventListener("keydown", handleKeyDown, true);
+window.addEventListener("resize", () => {
+  setSidebarWidth(els.sidebarResizeHandle.getAttribute("aria-valuenow"), { persist: false });
+});
 
+loadSidebarWidth();
 await loadSettings();
 await refreshCaptures();
 await refreshConnectionStatus();
