@@ -26,7 +26,7 @@
     "start": "electron .",
     "icons": "node scripts/generate-icons.js",
     "check": "node scripts/check-project.js",
-    "dist:win": "electron-builder --win nsis"
+    "dist:win": "electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "@notionhq/client": "^5.22.0",
