@@ -175,11 +175,12 @@ Tech stack:
 - GitHub Actions
 - Kubernetes manifests
 - Argo CD application manifest
+- GitHub Pages
 - Dependabot
 
-## Download Website And Local GitOps
+## Download Website
 
-The `site/` folder contains a minimalist static download website for LearnBetter. The site links to the latest GitHub Release and can run locally, in Docker, or in Kubernetes.
+The `site/` folder contains a minimalist static download website for LearnBetter. The site links to the latest GitHub Release and can run locally, on GitHub Pages, in Docker, or in Kubernetes.
 
 Preview locally:
 
@@ -187,6 +188,12 @@ Preview locally:
 cd site
 python -m http.server 8080
 ```
+
+The simple production path deploys `site/` to GitHub Pages through `.github/workflows/pages.yml`. In the repository settings, configure Pages to use **GitHub Actions** as the source. After that, pushes to `main` that change `site/**` will publish the website automatically.
+
+## Local GitOps Website Deployment
+
+The advanced platform-engineering path keeps the same website but deploys it to Kubernetes through Argo CD.
 
 Build the local container image:
 
@@ -214,6 +221,7 @@ This repository includes:
 
 - `CI`: runs project checks, syntax checks, and high-severity npm audit.
 - `Build Windows Installer`: builds a Windows `.exe` installer and uploads it as an artifact.
+- `Deploy Website`: publishes the static download website to GitHub Pages.
 - `Dependabot`: checks npm dependencies and GitHub Actions updates.
 
 The installer workflow can be triggered manually from GitHub Actions or automatically by pushing a version tag like:
