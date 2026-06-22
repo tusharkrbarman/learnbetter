@@ -9,6 +9,7 @@ import {
 pdfjsLib.GlobalWorkerOptions.workerSrc = "../../node_modules/pdfjs-dist/build/pdf.worker.mjs";
 
 const els = {
+  sidebar: document.querySelector(".sidebar"),
   notionAuthMode: document.querySelector("#notionAuthMode"),
   notionToken: document.querySelector("#notionToken"),
   notionOAuthClientId: document.querySelector("#notionOAuthClientId"),
@@ -104,6 +105,7 @@ function setSidebarWidth(width, { persist = true } = {}) {
   const maxWidth = getSidebarMaxWidth();
 
   document.documentElement.style.setProperty("--sidebar-width", `${nextWidth}px`);
+  els.sidebar.style.width = `${nextWidth}px`;
   els.sidebarResizeHandle.setAttribute("aria-valuenow", String(nextWidth));
   els.sidebarResizeHandle.setAttribute("aria-valuemax", String(maxWidth));
 
@@ -129,6 +131,21 @@ function beginSidebarResize(event) {
   event.preventDefault();
   document.body.classList.add("is-resizing-sidebar");
   els.sidebarResizeHandle.setPointerCapture(event.pointerId);
+}
+
+function beginSidebarResizeFromEdge(event) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  const rect = els.sidebar.getBoundingClientRect();
+  const distanceFromRight = rect.right - event.clientX;
+
+  if (distanceFromRight < 0 || distanceFromRight > 18) {
+    return;
+  }
+
+  beginSidebarResize(event);
 }
 
 function resizeSidebar(event) {
@@ -1063,6 +1080,7 @@ els.zoomIn.addEventListener("click", zoomIn);
 els.fitWidth.addEventListener("click", fitWidth);
 els.fitPage.addEventListener("click", fitPage);
 els.retryQueue.addEventListener("click", retryQueue);
+els.sidebar.addEventListener("pointerdown", beginSidebarResizeFromEdge);
 els.sidebarResizeHandle.addEventListener("pointerdown", beginSidebarResize);
 els.sidebarResizeHandle.addEventListener("pointermove", resizeSidebar);
 els.sidebarResizeHandle.addEventListener("pointerup", endSidebarResize);

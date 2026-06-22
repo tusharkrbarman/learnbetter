@@ -33,6 +33,7 @@ select {
 
 .sidebar {
   display: flex;
+  width: var(--sidebar-width);
   min-height: 0;
   flex-direction: column;
   gap: 22px;
@@ -47,8 +48,8 @@ select {
   z-index: 20;
   top: 0;
   bottom: 0;
-  left: calc(var(--sidebar-width) - 4px);
-  width: 8px;
+  left: calc(var(--sidebar-width) - 16px);
+  width: 16px;
   cursor: col-resize;
   touch-action: none;
   background: transparent;
@@ -59,7 +60,7 @@ select {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 3px;
+  right: 0;
   width: 1px;
   background: transparent;
 }
