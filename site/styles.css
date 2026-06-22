@@ -110,6 +110,10 @@ h1 {
   padding: 0 20px;
   font-size: 15px;
   font-weight: 760;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
 }
 
 .primary-action {
@@ -119,6 +123,7 @@ h1 {
 
 .primary-action:hover {
   background: #ffe28a;
+  transform: translateY(-1px);
 }
 
 .secondary-action {
@@ -129,6 +134,7 @@ h1 {
 
 .secondary-action:hover {
   border-color: #586273;
+  transform: translateY(-1px);
 }
 
 .workflow-panel {
@@ -244,6 +250,15 @@ h1 {
 .steps-grid article,
 .info-grid article {
   background: #121720;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.steps-grid article:hover,
+.info-grid article:hover {
+  background: #151c27;
+  transform: translateY(-2px);
 }
 
 .steps-grid article {
@@ -297,6 +312,74 @@ h1 {
   padding-top: 54px;
   padding-bottom: 64px;
   border-top: 1px solid #222a36;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy,
+  .workflow-panel,
+  .guide-section,
+  .info-grid,
+  .download-strip {
+    animation: fade-up 520ms ease both;
+  }
+
+  .workflow-panel {
+    animation-delay: 90ms;
+  }
+
+  .guide-section {
+    animation-delay: 140ms;
+  }
+
+  .info-grid {
+    animation-delay: 190ms;
+  }
+
+  .download-strip {
+    animation-delay: 240ms;
+  }
+
+  .status-dot {
+    animation: quiet-pulse 2.6s ease-in-out infinite;
+  }
+
+  .line.highlight {
+    animation: highlight-breathe 3.4s ease-in-out infinite;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes quiet-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 5px rgba(63, 193, 125, 0.12);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(63, 193, 125, 0.04);
+  }
+}
+
+@keyframes highlight-breathe {
+  0%,
+  100% {
+    opacity: 0.92;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 980px) {
