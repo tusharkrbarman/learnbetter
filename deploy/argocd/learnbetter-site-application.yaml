@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: learnbetter-site
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tusharkrbarman/learnbetter.git
+    targetRevision: main
+    path: deploy/learnbetter-site
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: learnbetter-site
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

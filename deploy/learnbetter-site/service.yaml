@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: learnbetter-site
+  labels:
+    app.kubernetes.io/name: learnbetter-site
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: learnbetter-site
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

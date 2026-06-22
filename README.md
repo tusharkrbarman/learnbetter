@@ -173,7 +173,40 @@ Tech stack:
 - electron-store
 - electron-builder
 - GitHub Actions
+- Kubernetes manifests
+- Argo CD application manifest
 - Dependabot
+
+## Download Website And Local GitOps
+
+The `site/` folder contains a minimalist static download website for LearnBetter. The site links to the latest GitHub Release and can run locally, in Docker, or in Kubernetes.
+
+Preview locally:
+
+```powershell
+cd site
+python -m http.server 8080
+```
+
+Build the local container image:
+
+```powershell
+docker build -t learnbetter-site:local site
+```
+
+Deploy to a local Kubernetes cluster after loading the image into your cluster runtime:
+
+```powershell
+kubectl apply -k deploy/learnbetter-site
+```
+
+The Argo CD example application is in:
+
+```text
+deploy/argocd/learnbetter-site-application.yaml
+```
+
+For a local Argo CD demo, point Argo CD at this repository and sync the `deploy/learnbetter-site` path. If you use `kind` or `k3d`, load `learnbetter-site:local` into the cluster before syncing.
 
 ## CI/CD
 

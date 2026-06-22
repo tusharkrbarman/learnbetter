@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learnbetter-site
+  labels:
+    app.kubernetes.io/name: learnbetter-site
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: learnbetter.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: learnbetter-site
+                port:
+                  name: http
