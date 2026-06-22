@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Download LearnBetter, a Windows PDF reader that turns highlights into Notion study toggles with OpenAI or Ollama.">
-    <title>LearnBetter - PDF Highlights to Notion Study Toggles</title>
+    <meta name="description" content="Download LearnBetter and learn how to turn PDF highlights into Notion study toggles with OpenAI or Ollama.">
+    <title>LearnBetter - Study From PDF Highlights</title>
     <link rel="icon" href="./assets/icon.png">
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -12,59 +12,93 @@
     <main class="page-shell">
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-copy">
-          <div class="brand-lockup">
-            <img src="./assets/icon.png" alt="LearnBetter app icon" width="56" height="56">
+          <a class="brand-lockup" href="https://github.com/tusharkrbarman/learnbetter" aria-label="LearnBetter source repository">
+            <img src="./assets/icon.png" alt="" width="52" height="52">
             <span>LearnBetter</span>
-          </div>
-          <p class="eyebrow">Windows desktop app</p>
-          <h1 id="page-title">Turn PDF highlights into Notion study toggles.</h1>
+          </a>
+
+          <p class="eyebrow">PDF reader for Notion study notes</p>
+          <h1 id="page-title">Create questions from the lines you highlight.</h1>
           <p class="lede">
-            Select text in a PDF, capture it, and LearnBetter creates an AI-generated question in Notion while preserving the highlighted answer exactly.
+            LearnBetter is a Windows desktop reader that captures selected PDF text, generates one study question, and sends both to Notion as a toggle. Your answer stays exactly equal to the highlighted text.
           </p>
-          <div class="actions">
+
+          <div class="actions" aria-label="Primary actions">
             <a class="primary-action" href="https://github.com/tusharkrbarman/learnbetter/releases/latest">Download for Windows</a>
             <a class="secondary-action" href="https://github.com/tusharkrbarman/learnbetter">View source</a>
           </div>
         </div>
 
-        <div class="product-panel" aria-label="LearnBetter workflow preview">
-          <div class="reader-preview">
-            <div class="preview-sidebar">
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <div class="preview-page">
-              <div class="highlight long"></div>
-              <div class="highlight medium"></div>
-              <div class="line"></div>
-              <div class="line short"></div>
-              <div class="toggle">
-                <strong>What did the highlight explain?</strong>
-                <p>Exact highlighted answer text</p>
-              </div>
+        <aside class="workflow-panel" aria-label="LearnBetter workflow">
+          <div class="panel-header">
+            <span class="status-dot"></span>
+            <span>Highlight captured</span>
+          </div>
+          <div class="pdf-lines">
+            <span class="line"></span>
+            <span class="line highlight"></span>
+            <span class="line highlight short"></span>
+            <span class="line"></span>
+          </div>
+          <div class="notion-toggle">
+            <span class="toggle-arrow">▸</span>
+            <div>
+              <strong>What should you remember from this passage?</strong>
+              <p>Exact highlighted PDF text appears inside the toggle.</p>
             </div>
           </div>
+        </aside>
+      </section>
+
+      <section class="guide-section" aria-labelledby="use-title">
+        <div>
+          <p class="section-kicker">How to use it</p>
+          <h2 id="use-title">Three steps from PDF to revision notes.</h2>
+        </div>
+        <div class="steps-grid">
+          <article>
+            <span>01</span>
+            <h3>Connect Notion</h3>
+            <p>Create a Notion page, share it with your integration, and paste the page link into LearnBetter.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Choose AI</h3>
+            <p>Use OpenAI API for hosted generation or Ollama for local question generation on your machine.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Highlight and capture</h3>
+            <p>Select text in the PDF, right-click, and LearnBetter appends a question toggle to Notion.</p>
+          </article>
         </div>
       </section>
 
-      <section class="details" aria-label="Product details">
+      <section class="info-grid" aria-label="Important LearnBetter details">
         <article>
-          <span class="number">01</span>
-          <h2>Capture</h2>
-          <p>Highlight textbook lines in the built-in PDF reader and capture them with a right click.</p>
+          <h2>What gets saved?</h2>
+          <p>Each capture stores the generated question, exact selected answer text, source page, PDF fingerprint, and Notion sync status.</p>
         </article>
         <article>
-          <span class="number">02</span>
-          <h2>Question</h2>
-          <p>Generate one focused study question with OpenAI or a local Ollama model.</p>
+          <h2>What if sync fails?</h2>
+          <p>Failed Notion or AI syncs stay in a retry queue. LearnBetter retries when the app opens, network returns, or setup is saved.</p>
         </article>
         <article>
-          <span class="number">03</span>
-          <h2>Sync</h2>
-          <p>Append a Notion toggle where the answer remains the exact selected text.</p>
+          <h2>What do I need?</h2>
+          <p>Windows, a Notion page, and either an OpenAI API key or a running Ollama model such as llama3.1:8b.</p>
         </article>
+        <article>
+          <h2>How is this delivered?</h2>
+          <p>This download page is containerized with Nginx and deployed to Kubernetes through Argo CD GitOps.</p>
+        </article>
+      </section>
+
+      <section class="download-strip" aria-label="Download LearnBetter">
+        <div>
+          <p class="section-kicker">Ready to study</p>
+          <h2>Download the latest Windows build.</h2>
+        </div>
+        <a class="primary-action" href="https://github.com/tusharkrbarman/learnbetter/releases/latest">Get LearnBetter</a>
       </section>
     </main>
   </body>

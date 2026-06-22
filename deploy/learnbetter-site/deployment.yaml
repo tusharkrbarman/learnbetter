@@ -11,6 +11,8 @@ spec:
       app.kubernetes.io/name: learnbetter-site
   template:
     metadata:
+      annotations:
+        learnbetter.dev/site-revision: "dark-guide-v1"
       labels:
         app.kubernetes.io/name: learnbetter-site
     spec:
