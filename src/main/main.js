@@ -144,10 +144,17 @@ function publicSettings(settings = getSettings()) {
   };
 }
 
-function hashHighlight({ pdfName, pageNumber, exactText }) {
+function hashHighlight({ pdfFingerprint, pdfName, pageNumber, exactText }) {
   return crypto
     .createHash("sha256")
-    .update(`${pdfName || ""}\n${pageNumber || ""}\n${exactText || ""}`)
+    .update(`${pdfFingerprint || pdfName || ""}\n${pageNumber || ""}\n${exactText || ""}`)
+    .digest("hex");
+}
+
+function fingerprintPdfData(data) {
+  return crypto
+    .createHash("sha256")
+    .update(data)
     .digest("hex");
 }
 
@@ -739,9 +746,12 @@ async function deleteNotionBlock({ settings, notionBlockId }) {
   });
 }
 
-function saveHighlight(record) {
+function saveHighlight(record, previousHash = "") {
   const highlights = getHighlights();
-  const next = [record, ...highlights.filter((item) => item.hash !== record.hash)].slice(0, 100);
+  const next = [
+    record,
+    ...highlights.filter((item) => item.hash !== record.hash && item.hash !== previousHash)
+  ].slice(0, 100);
   store.set("highlights", next);
   return next;
 }
@@ -793,24 +803,33 @@ async function processCapture(payload) {
   const settings = await getSettingsForNotionRequest();
   const exactText = String(payload.exactText || "");
   const pdfName = String(payload.pdfName || "Untitled PDF");
+  const pdfFingerprint = String(payload.pdfFingerprint || "");
   const pageNumber = Number(payload.pageNumber || 1);
   const rects = sanitizeHighlightRects(payload.rects);
-  const hash = hashHighlight({ pdfName, pageNumber, exactText });
+  const hash = hashHighlight({ pdfFingerprint, pdfName, pageNumber, exactText });
+  const legacyHash = pdfFingerprint ? hashHighlight({ pdfName, pageNumber, exactText }) : hash;
   const now = new Date().toISOString();
-  const existing = getHighlights().find((item) => item.hash === hash);
+  const existing = getHighlights().find((item) => item.hash === hash)
+    || getHighlights().find((item) => item.hash === legacyHash && !item.pdfFingerprint);
+  const previousHash = existing?.hash !== hash ? existing?.hash : "";
 
   if (existing?.status === "synced") {
     const hasStoredRects = Array.isArray(existing.rects) && existing.rects.length > 0;
     let record = existing;
     let highlights = getHighlights();
 
-    if (!hasStoredRects && rects.length > 0) {
+    if (previousHash || !existing.pdfFingerprint || (!hasStoredRects && rects.length > 0)) {
       record = {
         ...existing,
-        rects,
+        hash,
+        pdfFingerprint,
+        rects: hasStoredRects ? existing.rects : rects,
         updatedAt: now
       };
-      highlights = saveHighlight(record);
+      highlights = saveHighlight(record, previousHash);
+      if (previousHash) {
+        removeFromQueue(previousHash);
+      }
     }
 
     return {
@@ -823,10 +842,11 @@ async function processCapture(payload) {
   }
 
   let record = {
-    id: crypto.randomUUID(),
+    id: existing?.id || crypto.randomUUID(),
     hash,
     exactText,
     pdfName,
+    pdfFingerprint,
     pageNumber,
     rects: rects.length > 0 ? rects : existing?.rects || [],
     question: "",
@@ -836,7 +856,10 @@ async function processCapture(payload) {
     updatedAt: now
   };
 
-  saveHighlight(record);
+  saveHighlight(record, previousHash);
+  if (previousHash) {
+    removeFromQueue(previousHash);
+  }
   saveQueue(record);
 
   try {
@@ -1073,6 +1096,7 @@ ipcMain.handle("pdf:open", async () => {
   return {
     name: path.basename(filePath),
     path: filePath,
+    fingerprint: fingerprintPdfData(data),
     bytes: Array.from(data)
   };
 });

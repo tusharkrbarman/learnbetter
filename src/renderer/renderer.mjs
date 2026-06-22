@@ -55,12 +55,14 @@ const els = {
 const state = {
   pdf: null,
   pdfName: "",
+  pdfFingerprint: "",
   currentPage: 1,
   scale: 1.35,
   visualHighlights: [],
   sessionCaptureHashes: new Set(),
   isRendering: false,
   isSyncing: false,
+  isAutoRetrying: false,
   findController: null,
   findTimer: null,
   eventBus: null,
@@ -342,8 +344,16 @@ function renderSessionCaptures(highlights = []) {
   renderCaptureList(highlights.filter((item) => state.sessionCaptureHashes.has(item.hash)));
 }
 
+function isCaptureForPdf(item, pdfName = state.pdfName, pdfFingerprint = state.pdfFingerprint) {
+  if (pdfFingerprint) {
+    return item.pdfFingerprint === pdfFingerprint;
+  }
+
+  return item.pdfName === pdfName;
+}
+
 function getCapturesForCurrentPdf(highlights = []) {
-  return highlights.filter((item) => item.pdfName === state.pdfName);
+  return highlights.filter((item) => isCaptureForPdf(item));
 }
 
 function renderVisibleCaptures(highlights = []) {
@@ -407,6 +417,7 @@ async function saveSettings() {
     els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
     setStatus(settings.notionAuthMode === "oauth" && !settings.hasNotionOAuthToken ? "OAuth setup saved. Connect Notion next." : "Setup saved.", "success");
     await refreshConnectionStatus();
+    await autoRetryQueue();
   } catch (error) {
     setStatus(error.message || String(error), "error");
   } finally {
@@ -434,6 +445,7 @@ async function connectNotionOAuth() {
     updateNotionFields();
     setStatus(settings.notionPageId ? `Connected to Notion${settings.notionOAuthWorkspaceName ? ` workspace: ${settings.notionOAuthWorkspaceName}` : ""}.` : "Connected to Notion. Add the destination page link, then save setup.", "success");
     await refreshConnectionStatus();
+    await autoRetryQueue();
   } catch (error) {
     setStatus(error.message || String(error), "error");
   } finally {
@@ -733,9 +745,9 @@ function redrawVisualHighlightsSoon() {
   });
 }
 
-function getHighlightRectsForPdf(highlights = [], pdfName = state.pdfName) {
+function getHighlightRectsForPdf(highlights = [], pdfName = state.pdfName, pdfFingerprint = state.pdfFingerprint) {
   return highlights
-    .filter((item) => item.pdfName === pdfName && Array.isArray(item.rects))
+    .filter((item) => isCaptureForPdf(item, pdfName, pdfFingerprint) && Array.isArray(item.rects))
     .flatMap((item) => item.rects);
 }
 
@@ -755,6 +767,7 @@ async function loadStoredHighlightsForPdf() {
 async function renderPdf(pdfData) {
   state.isRendering = true;
   state.pdfName = pdfData.name;
+  state.pdfFingerprint = pdfData.fingerprint || "";
   state.currentPage = 1;
   state.scale = ZOOM_DEFAULT;
   state.visualHighlights = [];
@@ -900,6 +913,7 @@ async function captureHighlight() {
     const result = await window.notionPdf.createCapture({
       exactText,
       pdfName: state.pdfName,
+      pdfFingerprint: state.pdfFingerprint,
       pageNumber,
       rects
     });
@@ -1051,6 +1065,59 @@ async function retryQueue() {
   }
 }
 
+function hasQueuedWork(snapshot) {
+  return Boolean(snapshot?.queue?.length || snapshot?.deleteQueue?.length);
+}
+
+function canRetryQueuedWork(snapshot, connectionStatus) {
+  if (!hasQueuedWork(snapshot) || !connectionStatus) {
+    return false;
+  }
+
+  const hasPendingCreates = Boolean(snapshot.queue?.length);
+  const hasPendingDeletes = Boolean(snapshot.deleteQueue?.length);
+  const notionReady = connectionStatus.notion?.status === "connected";
+  const aiReady = connectionStatus.openai?.status === "connected";
+
+  return notionReady && (!hasPendingCreates || aiReady) && (hasPendingCreates || hasPendingDeletes);
+}
+
+async function autoRetryQueue() {
+  if (state.isSyncing || state.isAutoRetrying || !window.navigator.onLine) {
+    return;
+  }
+
+  const snapshot = await window.notionPdf.listCaptures();
+  if (!hasQueuedWork(snapshot)) {
+    return;
+  }
+
+  const connectionStatus = await refreshConnectionStatus();
+  if (!canRetryQueuedWork(snapshot, connectionStatus)) {
+    return;
+  }
+
+  state.isAutoRetrying = true;
+  state.isSyncing = true;
+  setBusy(true);
+  setStatus("Retrying queued captures...");
+
+  try {
+    const result = await window.notionPdf.retryQueue();
+    for (const retryResult of result.results || []) {
+      rememberSessionCapture(retryResult.record);
+    }
+    renderVisibleCaptures(result.highlights);
+    setStatus(result.ok ? "Queued captures synced." : "Some queued captures still failed.", result.ok ? "success" : "error");
+  } catch (error) {
+    setStatus(error.message || "Could not retry queued captures.", "error");
+  } finally {
+    state.isAutoRetrying = false;
+    state.isSyncing = false;
+    setBusy(false);
+  }
+}
+
 els.saveSettings.addEventListener("click", saveSettings);
 els.validateSettings.addEventListener("click", validateSettings);
 els.notionAuthMode.addEventListener("change", () => {
@@ -1110,10 +1177,14 @@ document.addEventListener("keydown", handleKeyDown, true);
 window.addEventListener("resize", () => {
   setSidebarWidth(els.sidebarResizeHandle.getAttribute("aria-valuenow"), { persist: false });
 });
+window.addEventListener("online", () => {
+  autoRetryQueue();
+});
 
 loadSidebarWidth();
 await loadSettings();
 await refreshCaptures();
 await refreshConnectionStatus();
+await autoRetryQueue();
 updateFindControls();
 updateZoomControls();
