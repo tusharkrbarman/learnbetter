@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   windows-installer:
     name: Windows installer
@@ -37,3 +40,37 @@ jobs:
           path: dist/*.exe
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $installer = Get-ChildItem -Path dist -Filter *.exe | Select-Object -First 1
+          if (-not $installer) {
+            throw "No installer found in dist."
+          }
+
+          $isPrerelease = $env:TAG_NAME -match "(alpha|beta|rc|test)"
+          gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+            gh release upload $env:TAG_NAME $installer.FullName --repo $env:GITHUB_REPOSITORY --clobber
+            exit $LASTEXITCODE
+          }
+
+          $args = @(
+            "release", "create", $env:TAG_NAME, $installer.FullName,
+            "--repo", $env:GITHUB_REPOSITORY,
+            "--title", "LearnBetter $env:TAG_NAME",
+            "--notes", "Automated Windows installer build for $env:TAG_NAME."
+          )
+
+          if ($isPrerelease) {
+            $args += "--prerelease"
+          }
+
+          gh @args
