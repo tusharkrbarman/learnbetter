@@ -140,17 +140,8 @@ label {
   font-weight: 550;
 }
 
-.provider-ollama,
 .notion-oauth {
   display: none;
-}
-
-body[data-ai-provider="ollama"] .provider-openai {
-  display: none;
-}
-
-body[data-ai-provider="ollama"] .provider-ollama {
-  display: block;
 }
 
 body[data-notion-auth="oauth"] .notion-token {

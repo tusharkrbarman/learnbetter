@@ -18,9 +18,6 @@ const els = {
   connectNotionOAuth: document.querySelector("#connectNotionOAuth"),
   disconnectNotionOAuth: document.querySelector("#disconnectNotionOAuth"),
   notionPageInput: document.querySelector("#notionPageInput"),
-  aiProvider: document.querySelector("#aiProvider"),
-  openaiApiKey: document.querySelector("#openaiApiKey"),
-  openaiModel: document.querySelector("#openaiModel"),
   ollamaBaseUrl: document.querySelector("#ollamaBaseUrl"),
   ollamaModel: document.querySelector("#ollamaModel"),
   bookTitle: document.querySelector("#bookTitle"),
@@ -29,9 +26,8 @@ const els = {
   settingsStatus: document.querySelector("#settingsStatus"),
   notionStatusDot: document.querySelector("#notionStatusDot"),
   notionStatusText: document.querySelector("#notionStatusText"),
-  openaiStatusDot: document.querySelector("#openaiStatusDot"),
-  openaiStatusText: document.querySelector("#openaiStatusText"),
-  aiStatusName: document.querySelector("#aiStatusName"),
+  ollamaStatusDot: document.querySelector("#ollamaStatusDot"),
+  ollamaStatusText: document.querySelector("#ollamaStatusText"),
   openPdf: document.querySelector("#openPdf"),
   captureHighlight: document.querySelector("#captureHighlight"),
   searchPdf: document.querySelector("#searchPdf"),
@@ -195,22 +191,12 @@ function setStatus(message, type = "") {
 }
 
 function setProviderStatus(provider, status, message = "") {
-  const dot = provider === "notion" ? els.notionStatusDot : els.openaiStatusDot;
-  const text = provider === "notion" ? els.notionStatusText : els.openaiStatusText;
+  const dot = provider === "notion" ? els.notionStatusDot : els.ollamaStatusDot;
+  const text = provider === "notion" ? els.notionStatusText : els.ollamaStatusText;
   const normalized = status || "missing";
   dot.className = `status-dot ${normalized}`;
   text.textContent = message || CONNECTION_LABELS[normalized] || "Unknown";
   text.title = message || "";
-}
-
-function getSelectedProviderLabel(provider = els.aiProvider.value) {
-  return provider === "ollama" ? "Ollama" : "OpenAI";
-}
-
-function updateProviderFields() {
-  const provider = els.aiProvider.value;
-  document.body.dataset.aiProvider = provider;
-  els.aiStatusName.textContent = getSelectedProviderLabel(provider);
 }
 
 function updateNotionFields() {
@@ -219,7 +205,7 @@ function updateNotionFields() {
 
 function setConnectionChecking() {
   setProviderStatus("notion", "checking");
-  setProviderStatus("openai", "checking");
+  setProviderStatus("ollama", "checking");
 }
 
 async function refreshConnectionStatus({ showStatus = false } = {}) {
@@ -228,18 +214,17 @@ async function refreshConnectionStatus({ showStatus = false } = {}) {
   try {
     const result = await window.notionPdf.getConnectionStatus();
     setProviderStatus("notion", result.notion.status, result.notion.message);
-    setProviderStatus("openai", result.openai.status, result.openai.message);
-    els.aiStatusName.textContent = getSelectedProviderLabel(result.openai.provider);
+    setProviderStatus("ollama", result.ollama.status, result.ollama.message);
 
-    const isConnected = result.notion.status === "connected" && result.openai.status === "connected";
+    const isConnected = result.notion.status === "connected" && result.ollama.status === "connected";
     if (showStatus) {
-      setStatus(isConnected ? `Notion and ${getSelectedProviderLabel(result.openai.provider)} are connected.` : "Some connections need attention.", isConnected ? "success" : "error");
+      setStatus(isConnected ? "Notion and Ollama are connected." : "Some connections need attention.", isConnected ? "success" : "error");
     }
 
     return result;
   } catch (error) {
     setProviderStatus("notion", "error", "Could not check");
-    setProviderStatus("openai", "error", "Could not check");
+    setProviderStatus("ollama", "error", "Could not check");
     if (showStatus) {
       setStatus(error.message || String(error), "error");
     }
@@ -377,16 +362,12 @@ async function loadSettings() {
   els.notionPageInput.value = settings.notionPageInput || "";
   els.notionOAuthClientId.value = settings.notionOAuthClientId || "";
   els.notionOAuthRedirectUri.value = settings.notionOAuthRedirectUri || "http://127.0.0.1:45891/notion/callback";
-  els.aiProvider.value = settings.aiProvider || "openai";
-  els.openaiModel.value = settings.openaiModel || "gpt-4o-mini";
   els.ollamaBaseUrl.value = settings.ollamaBaseUrl || "http://localhost:11434";
   els.ollamaModel.value = settings.ollamaModel || "llama3.1:8b";
   els.bookTitle.value = settings.bookTitle || "";
   els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
   els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
-  els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
   updateNotionFields();
-  updateProviderFields();
 }
 
 async function saveSettings() {
@@ -401,9 +382,6 @@ async function saveSettings() {
       notionOAuthClientSecret: els.notionOAuthClientSecret.value,
       notionOAuthRedirectUri: els.notionOAuthRedirectUri.value,
       notionPageInput: els.notionPageInput.value,
-      aiProvider: els.aiProvider.value,
-      openaiApiKey: els.openaiApiKey.value,
-      openaiModel: els.openaiModel.value,
       ollamaBaseUrl: els.ollamaBaseUrl.value,
       ollamaModel: els.ollamaModel.value,
       bookTitle: els.bookTitle.value
@@ -411,10 +389,8 @@ async function saveSettings() {
 
     els.notionToken.value = "";
     els.notionOAuthClientSecret.value = "";
-    els.openaiApiKey.value = "";
     els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
     els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
-    els.openaiApiKey.placeholder = settings.hasOpenaiApiKey ? "Saved API key" : "sk-...";
     setStatus(settings.notionAuthMode === "oauth" && !settings.hasNotionOAuthToken ? "OAuth setup saved. Connect Notion next." : "Setup saved.", "success");
     await refreshConnectionStatus();
     await autoRetryQueue();
@@ -1077,7 +1053,7 @@ function canRetryQueuedWork(snapshot, connectionStatus) {
   const hasPendingCreates = Boolean(snapshot.queue?.length);
   const hasPendingDeletes = Boolean(snapshot.deleteQueue?.length);
   const notionReady = connectionStatus.notion?.status === "connected";
-  const aiReady = connectionStatus.openai?.status === "connected";
+  const aiReady = connectionStatus.ollama?.status === "connected";
 
   return notionReady && (!hasPendingCreates || aiReady) && (hasPendingCreates || hasPendingDeletes);
 }
@@ -1126,10 +1102,6 @@ els.notionAuthMode.addEventListener("change", () => {
 });
 els.connectNotionOAuth.addEventListener("click", connectNotionOAuth);
 els.disconnectNotionOAuth.addEventListener("click", disconnectNotionOAuth);
-els.aiProvider.addEventListener("change", () => {
-  updateProviderFields();
-  setProviderStatus("openai", "missing", "Save setup to check");
-});
 els.openPdf.addEventListener("click", openPdf);
 els.captureHighlight.addEventListener("click", captureHighlight);
 els.searchPdf.addEventListener("input", scheduleFind);

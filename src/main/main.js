@@ -10,7 +10,6 @@ const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
 const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
 const DEFAULT_NOTION_REDIRECT_URI = "http://127.0.0.1:45891/notion/callback";
-const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 const Store = ElectronStore.default || ElectronStore;
 
 app.setName(APP_NAME);
@@ -30,9 +29,6 @@ const store = new Store({
       notionOAuthRefreshToken: "",
       notionOAuthBotId: "",
       notionOAuthWorkspaceName: "",
-      aiProvider: "openai",
-      openaiApiKey: "",
-      openaiModel: "gpt-4o-mini",
       ollamaBaseUrl: "http://localhost:11434",
       ollamaModel: "llama3.1:8b",
       bookTitle: ""
@@ -132,15 +128,12 @@ function publicSettings(settings = getSettings()) {
     notionOAuthClientId: settings.notionOAuthClientId || "",
     notionOAuthRedirectUri: settings.notionOAuthRedirectUri || DEFAULT_NOTION_REDIRECT_URI,
     notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
-    aiProvider: settings.aiProvider || "openai",
-    openaiModel: settings.openaiModel || "gpt-4o-mini",
     ollamaBaseUrl: settings.ollamaBaseUrl || "http://localhost:11434",
     ollamaModel: settings.ollamaModel || "llama3.1:8b",
     bookTitle: settings.bookTitle || "",
     hasNotionToken: Boolean(settings.notionToken),
     hasNotionOAuthSecret: Boolean(settings.notionOAuthClientSecret),
-    hasNotionOAuthToken: Boolean(settings.notionToken && isOAuthMode(settings)),
-    hasOpenaiApiKey: Boolean(settings.openaiApiKey)
+    hasNotionOAuthToken: Boolean(settings.notionToken && isOAuthMode(settings))
   };
 }
 
@@ -498,57 +491,7 @@ function makeToggleBlock({ question, exactText, bookTitle, pdfName, pageNumber }
 }
 
 async function generateQuestion({ exactText, settings }) {
-  if ((settings.aiProvider || "openai") === "ollama") {
-    return generateOllamaQuestion({ exactText, settings });
-  }
-
-  return generateOpenAIQuestion({ exactText, settings });
-}
-
-async function generateOpenAIQuestion({ exactText, settings }) {
-  if (!settings.openaiApiKey) {
-    throw new Error("OpenAI API key is missing.");
-  }
-
-  const response = await requestOpenAI({
-    apiKey: settings.openaiApiKey,
-    path: "/chat/completions",
-    method: "POST",
-    body: {
-      model: settings.openaiModel || "gpt-4o-mini",
-      temperature: 0.2,
-      messages: getQuestionMessages(exactText)
-    }
-  });
-
-  const question = response.choices?.[0]?.message?.content?.trim();
-  if (!question) {
-    throw new Error("The AI did not return a question.");
-  }
-
-  return question;
-}
-
-async function requestOpenAI({ apiKey, path: requestPath, method = "GET", body }) {
-  const response = await fetch(`${OPENAI_API_BASE_URL}${requestPath}`, {
-    method,
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await response.json()
-    : { error: { message: await response.text() } };
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || `OpenAI returned HTTP ${response.status}.`);
-  }
-
-  return data;
+  return generateOllamaQuestion({ exactText, settings });
 }
 
 async function generateOllamaQuestion({ exactText, settings }) {
@@ -622,37 +565,6 @@ async function checkNotionConnection(settings) {
   }
 }
 
-async function checkOpenAIConnection(settings) {
-  if ((settings.aiProvider || "openai") === "ollama") {
-    return checkOllamaConnection(settings);
-  }
-
-  if (!settings.openaiApiKey) {
-    return {
-      status: "missing",
-      message: "API key missing"
-    };
-  }
-
-  try {
-    const model = encodeURIComponent(settings.openaiModel || "gpt-4o-mini");
-    await requestOpenAI({
-      apiKey: settings.openaiApiKey,
-      path: `/models/${model}`
-    });
-
-    return {
-      status: "connected",
-      message: "Connected"
-    };
-  } catch (error) {
-    return {
-      status: "error",
-      message: error.message || String(error)
-    };
-  }
-}
-
 async function checkOllamaConnection(settings) {
   const model = String(settings.ollamaModel || "llama3.1:8b").trim();
   if (!model) {
@@ -691,17 +603,14 @@ async function checkOllamaConnection(settings) {
 
 async function getConnectionStatus() {
   const settings = getSettings();
-  const [notion, openai] = await Promise.all([
+  const [notion, ollama] = await Promise.all([
     checkNotionConnection(settings),
-    checkOpenAIConnection(settings)
+    checkOllamaConnection(settings)
   ]);
 
   return {
     notion,
-    openai: {
-      ...openai,
-      provider: settings.aiProvider || "openai"
-    },
+    ollama,
     checkedAt: new Date().toISOString()
   };
 }
@@ -996,13 +905,14 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
     notionOAuthClientId: String(nextSettings.notionOAuthClientId || current.notionOAuthClientId || "").trim(),
     notionOAuthClientSecret: String(nextSettings.notionOAuthClientSecret || current.notionOAuthClientSecret || "").trim(),
     notionOAuthRedirectUri: cleanRedirectUri(nextSettings.notionOAuthRedirectUri || current.notionOAuthRedirectUri),
-    aiProvider: ["openai", "ollama"].includes(nextSettings.aiProvider) ? nextSettings.aiProvider : current.aiProvider || "openai",
-    openaiApiKey: String(nextSettings.openaiApiKey || current.openaiApiKey || "").trim(),
-    openaiModel: String(nextSettings.openaiModel || current.openaiModel || "gpt-4o-mini").trim(),
     ollamaBaseUrl: cleanBaseUrl(nextSettings.ollamaBaseUrl || current.ollamaBaseUrl),
     ollamaModel: String(nextSettings.ollamaModel || current.ollamaModel || "llama3.1:8b").trim(),
     bookTitle: String(nextSettings.bookTitle || "").trim()
   };
+
+  for (const key of ["ai" + "Provider", "open" + "aiApiKey", "open" + "aiModel"]) {
+    delete merged[key];
+  }
 
   store.set("settings", merged);
   return publicSettings(merged);

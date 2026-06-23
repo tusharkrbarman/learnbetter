@@ -6,11 +6,11 @@
 
 LearnBetter is an open-source Windows desktop PDF reader for students, readers, and researchers who want to turn PDF highlights into AI-generated study questions in Notion.
 
-Select text in a PDF, right-click to capture it, and LearnBetter creates a Notion toggle where the title is an AI-generated question and the answer is the exact highlighted text. It supports OpenAI-compatible question generation, local Ollama models, Notion OAuth, Notion internal integrations, PDF.js highlighting, and GitHub Actions Windows installer builds.
+Select text in a PDF, right-click to capture it, and LearnBetter creates a Notion toggle where the title is a locally generated study question and the answer is the exact highlighted text. It uses Ollama for local LLM question generation, plus Notion OAuth, Notion internal integrations, PDF.js highlighting, and GitHub Actions Windows installer builds.
 
 ## Keywords
 
-PDF reader, AI study app, Notion integration, Notion toggle questions, PDF highlights to Notion, AI flashcards, Electron PDF reader, OpenAI study questions, Ollama local AI, Windows desktop app, PDF.js, spaced repetition workflow.
+PDF reader, local AI study app, Notion integration, Notion toggle questions, PDF highlights to Notion, AI flashcards, Electron PDF reader, Ollama local AI, local LLM study questions, Windows desktop app, PDF.js, spaced repetition workflow.
 
 ## Features
 
@@ -24,7 +24,7 @@ PDF reader, AI study app, Notion integration, Notion toggle questions, PDF highl
 - Remove local highlights and delete the related Notion toggle for new captures.
 - Prevent duplicate captures with a hash of PDF fingerprint, page number, and exact text.
 - Queue failed Notion sync/delete operations for retry.
-- Use OpenAI API or local Ollama models.
+- Generate questions with local Ollama models.
 - Connect Notion with OAuth or an internal integration token.
 - Build a Windows `.exe` installer with GitHub Actions.
 
@@ -63,7 +63,7 @@ Requirements:
 - Node.js 22 or later
 - npm
 - Notion account
-- OpenAI API key or local Ollama installation
+- Local Ollama installation
 
 Install and run:
 
@@ -107,21 +107,9 @@ Use this for a simple personal setup.
 5. Paste the token and the destination Notion page link or page ID.
 6. Save setup and check the connection status.
 
-## AI Provider Setup
+## Local LLM Setup
 
-### OpenAI
-
-Use an OpenAI API key and model name, for example:
-
-```text
-gpt-4o-mini
-```
-
-ChatGPT subscriptions do not replace API keys for this desktop app.
-
-### Ollama
-
-Run Ollama locally and choose `Ollama local` in LearnBetter.
+Run Ollama locally before capturing highlights.
 
 Default settings:
 
@@ -130,7 +118,7 @@ Ollama URL: http://localhost:11434
 Model: llama3.1:8b
 ```
 
-Ollama lets you generate questions locally without sending highlight text to an AI API provider.
+Ollama lets LearnBetter generate questions locally without sending highlight text to a hosted service.
 
 ## Usage
 
@@ -168,7 +156,6 @@ Tech stack:
 - Electron
 - PDF.js
 - Notion API
-- OpenAI API
 - Ollama API
 - electron-store
 - electron-builder
@@ -245,8 +232,8 @@ git push origin v0.1.0
 
 - API keys and Notion tokens should never be committed.
 - Local setup data is stored with Electron Store under the app name `learnbetter`.
-- Highlight text is sent to the selected AI provider only when generating a question.
-- If Ollama is selected, question generation can run locally.
+- Highlight text is sent to Ollama only when generating a question.
+- Question generation runs locally through your configured Ollama model.
 - Notion receives captured highlights because it stores the generated question toggles.
 
 The repository ignores `.env`, `.env.*`, certificate/key files, dependency folders, build outputs, and local cache files.
