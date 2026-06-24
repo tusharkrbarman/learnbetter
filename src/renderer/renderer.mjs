@@ -193,6 +193,10 @@ function setStatus(message, type = "") {
   els.settingsStatus.className = `status-line ${type}`.trim();
 }
 
+function showOfflineStatus() {
+  setStatus("Offline: Ollama can still generate locally. Notion sync will be queued until you reconnect.", "error");
+}
+
 function setProviderStatus(provider, status, message = "") {
   const dot = provider === "notion" ? els.notionStatusDot : els.ollamaStatusDot;
   const text = provider === "notion" ? els.notionStatusText : els.ollamaStatusText;
@@ -1002,7 +1006,9 @@ async function captureHighlight() {
   state.isSyncing = true;
   setBusy(true);
   setCaptureGenerating(true);
-  setStatus("Generating question locally with Ollama, then syncing to Notion...");
+  setStatus(window.navigator.onLine
+    ? "Generating question locally with Ollama, then syncing to Notion..."
+    : "Offline: generating locally with Ollama. Notion sync will be queued.");
 
   try {
     const result = await window.notionPdf.createCapture({
@@ -1010,6 +1016,7 @@ async function captureHighlight() {
       pdfName: state.pdfName,
       pdfFingerprint: state.pdfFingerprint,
       pdfContentFingerprint: state.pdfContentFingerprint,
+      isOnline: window.navigator.onLine,
       pageNumber,
       rects
     });
@@ -1017,8 +1024,10 @@ async function captureHighlight() {
     rememberSessionCapture(result.record);
     renderVisibleCaptures(result.highlights);
 
-    if (result.duplicate) {
+    if (result.duplicate && result.ok) {
       setStatus("This highlight was already synced.", "success");
+    } else if (result.duplicate) {
+      setStatus(result.error || "This highlight is already queued for retry.", "error");
     } else if (result.ok) {
       setStatus("Question toggle added to Notion.", "success");
     } else {
@@ -1271,13 +1280,19 @@ window.addEventListener("resize", () => {
   setSidebarWidth(els.sidebarResizeHandle.getAttribute("aria-valuenow"), { persist: false });
 });
 window.addEventListener("online", () => {
+  setStatus("Back online. Retrying queued Notion syncs...", "success");
   autoRetryQueue();
 });
+window.addEventListener("offline", showOfflineStatus);
 
 loadSidebarWidth();
 await loadSettings();
 await refreshCaptures();
-await refreshConnectionStatus();
+if (window.navigator.onLine) {
+  await refreshConnectionStatus();
+} else {
+  showOfflineStatus();
+}
 await autoRetryQueue();
 updateFindControls();
 updateZoomControls();

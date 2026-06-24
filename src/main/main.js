@@ -10,6 +10,10 @@ const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
 const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
 const DEFAULT_NOTION_REDIRECT_URI = "http://127.0.0.1:45891/notion/callback";
+const MAX_HIGHLIGHTS = 100;
+const MAX_QUEUE_ITEMS = 50;
+const MAX_DELETE_QUEUE_ITEMS = 50;
+const MAX_QUEUE_ATTEMPTS = 5;
 const Store = ElectronStore.default || ElectronStore;
 
 app.setName(APP_NAME);
@@ -17,6 +21,7 @@ app.setAppUserModelId(APP_ID);
 
 const store = new Store({
   name: "learnbetter",
+  clearInvalidConfig: true,
   defaults: {
     settings: {
       notionAuthMode: "token",
@@ -60,6 +65,7 @@ function createWindow() {
 app.whenReady().then(() => {
   app.setName(APP_NAME);
   app.setAppUserModelId(APP_ID);
+  migrateStoreData();
   app.setAboutPanelOptions({
     applicationName: APP_NAME,
     applicationVersion: app.getVersion(),
@@ -118,6 +124,43 @@ function getQueue() {
 
 function getDeleteQueue() {
   return store.get("deleteQueue", []);
+}
+
+function trimQueue(queue, limit) {
+  return (Array.isArray(queue) ? queue : [])
+    .filter((item) => item && typeof item === "object" && item.hash)
+    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))
+    .slice(0, limit);
+}
+
+function migrateStoreData() {
+  const settings = {
+    ...store.get("settings", {})
+  };
+
+  for (const key of ["ai" + "Provider", "open" + "aiApiKey", "open" + "aiModel"]) {
+    delete settings[key];
+  }
+
+  store.set("settings", {
+    notionAuthMode: settings.notionAuthMode || "token",
+    notionToken: settings.notionToken || "",
+    notionPageId: settings.notionPageId || "",
+    notionPageInput: settings.notionPageInput || settings.notionPageId || "",
+    notionOAuthClientId: settings.notionOAuthClientId || "",
+    notionOAuthClientSecret: settings.notionOAuthClientSecret || "",
+    notionOAuthRedirectUri: cleanRedirectUri(settings.notionOAuthRedirectUri),
+    notionOAuthRefreshToken: settings.notionOAuthRefreshToken || "",
+    notionOAuthBotId: settings.notionOAuthBotId || "",
+    notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
+    ollamaBaseUrl: cleanBaseUrl(settings.ollamaBaseUrl),
+    ollamaModel: String(settings.ollamaModel || "llama3.1:8b").trim(),
+    bookTitle: settings.bookTitle || ""
+  });
+
+  store.set("highlights", (Array.isArray(store.get("highlights")) ? store.get("highlights") : []).slice(0, MAX_HIGHLIGHTS));
+  store.set("queue", trimQueue(store.get("queue"), MAX_QUEUE_ITEMS));
+  store.set("deleteQueue", trimQueue(store.get("deleteQueue"), MAX_DELETE_QUEUE_ITEMS));
 }
 
 function publicSettings(settings = getSettings()) {
@@ -286,6 +329,53 @@ function normalizeGeneratedQuestion(rawQuestion) {
   }
 
   return question;
+}
+
+function normalizeGeneratedAnswer(rawAnswer, exactText) {
+  const answer = String(rawAnswer || "").replace(/\s+/g, " ").trim();
+  if (!answer) {
+    throw new Error("Ollama did not return an AI answer.");
+  }
+
+  if (answer.length > 700) {
+    throw new Error("Ollama returned an AI answer that was too long. Try a smaller selection.");
+  }
+
+  if (answer === String(exactText || "").replace(/\s+/g, " ").trim()) {
+    throw new Error("Ollama copied the source text instead of writing an AI answer. Try again.");
+  }
+
+  return answer;
+}
+
+function stripJsonFence(rawText) {
+  return String(rawText || "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+function parseGeneratedStudyItem(rawText, exactText) {
+  const cleaned = stripJsonFence(rawText);
+  const jsonStart = cleaned.indexOf("{");
+  const jsonEnd = cleaned.lastIndexOf("}");
+
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+    throw new Error("Ollama did not return the expected question and answer JSON. Try again.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
+  } catch {
+    throw new Error("Ollama returned invalid JSON for the question and answer. Try again.");
+  }
+
+  return {
+    question: normalizeGeneratedQuestion(parsed.question),
+    aiAnswer: normalizeGeneratedAnswer(parsed.answer, exactText)
+  };
 }
 
 function formatNotionError(error) {
@@ -492,11 +582,15 @@ function getQuestionMessages(exactText) {
     {
       role: "system",
       content: [
-        "You generate study questions from highlighted textbook passages.",
-        "Return exactly one clear question.",
-        "Do not answer the question.",
-        "Do not quote, rewrite, summarize, or modify the source passage.",
-        "Output only the question text."
+        "You create grounded study notes from highlighted textbook passages.",
+        "Use only the highlighted passage as evidence.",
+        "Write one specific study question that targets the central idea, causal relationship, definition, mechanism, or contrast in the passage.",
+        "Avoid vague questions like 'What is discussed in this passage?'",
+        "Write one concise AI answer that directly answers the question using only the highlighted passage.",
+        "Do not quote the passage at length.",
+        "Do not add outside facts.",
+        "Output only valid JSON with this exact shape:",
+        "{\"question\":\"...\",\"answer\":\"...\"}"
       ].join(" ")
     },
     {
@@ -555,7 +649,25 @@ function sourceBlock(bookTitle, pdfName, pageNumber) {
   };
 }
 
-function makeToggleBlock({ question, exactText, bookTitle, pdfName, pageNumber }) {
+function labelBlock(label) {
+  return {
+    object: "block",
+    type: "paragraph",
+    paragraph: {
+      rich_text: [
+        {
+          type: "text",
+          text: { content: label },
+          annotations: {
+            bold: true
+          }
+        }
+      ]
+    }
+  };
+}
+
+function makeToggleBlock({ question, aiAnswer, exactText, bookTitle, pdfName, pageNumber }) {
   return {
     object: "block",
     type: "toggle",
@@ -567,6 +679,9 @@ function makeToggleBlock({ question, exactText, bookTitle, pdfName, pageNumber }
         }
       ],
       children: [
+        labelBlock("AI answer"),
+        ...plainTextBlocks(aiAnswer),
+        labelBlock("Copied text"),
         ...plainTextBlocks(exactText),
         sourceBlock(bookTitle, pdfName, pageNumber)
       ]
@@ -574,7 +689,7 @@ function makeToggleBlock({ question, exactText, bookTitle, pdfName, pageNumber }
   };
 }
 
-async function generateQuestion({ exactText, settings }) {
+async function generateStudyItem({ exactText, settings }) {
   return generateOllamaQuestion({ exactText, settings });
 }
 
@@ -604,7 +719,7 @@ async function generateOllamaQuestion({ exactText, settings }) {
     }
 
     const data = await response.json();
-    return normalizeGeneratedQuestion(data.message?.content);
+    return parseGeneratedStudyItem(data.message?.content, exactText);
   } catch (error) {
     throw new Error(formatOllamaError(error, settings));
   }
@@ -725,7 +840,7 @@ async function getConnectionStatus() {
   };
 }
 
-async function appendToggleToNotion({ settings, question, exactText, pdfName, pageNumber }) {
+async function appendToggleToNotion({ settings, question, aiAnswer, exactText, pdfName, pageNumber }) {
   if (!settings.notionToken) {
     throw new Error("Notion integration token is missing.");
   }
@@ -741,6 +856,7 @@ async function appendToggleToNotion({ settings, question, exactText, pdfName, pa
       children: [
         makeToggleBlock({
           question,
+          aiAnswer,
           exactText,
           bookTitle: settings.bookTitle,
           pdfName,
@@ -778,14 +894,18 @@ function saveHighlight(record, previousHash = "") {
   const next = [
     record,
     ...highlights.filter((item) => item.hash !== record.hash && item.hash !== previousHash)
-  ].slice(0, 100);
+  ].slice(0, MAX_HIGHLIGHTS);
   store.set("highlights", next);
   return next;
 }
 
 function saveQueue(record) {
+  if (Number(record.retryCount || 0) >= MAX_QUEUE_ATTEMPTS) {
+    return removeFromQueue(record.hash);
+  }
+
   const queue = getQueue();
-  const next = [record, ...queue.filter((item) => item.hash !== record.hash)];
+  const next = [record, ...queue.filter((item) => item.hash !== record.hash)].slice(0, MAX_QUEUE_ITEMS);
   store.set("queue", next);
   return next;
 }
@@ -797,8 +917,12 @@ function removeFromQueue(hash) {
 }
 
 function saveDeleteQueue(record) {
+  if (Number(record.deleteRetryCount || 0) >= MAX_QUEUE_ATTEMPTS) {
+    return removeFromDeleteQueue(record.hash);
+  }
+
   const queue = getDeleteQueue();
-  const next = [record, ...queue.filter((item) => item.hash !== record.hash)];
+  const next = [record, ...queue.filter((item) => item.hash !== record.hash)].slice(0, MAX_DELETE_QUEUE_ITEMS);
   store.set("deleteQueue", next);
   return next;
 }
@@ -872,6 +996,11 @@ function findExistingHighlight({ hash, fullFileHash, legacyNameHash, pdfContentF
       : null);
 }
 
+function isCaptureQueued(...hashes) {
+  const candidates = new Set(hashes.filter(Boolean));
+  return getQueue().some((item) => candidates.has(item.hash));
+}
+
 async function processCapture(payload) {
   const settings = await getSettingsForNotionRequest();
   const exactText = String(payload.exactText || "");
@@ -893,6 +1022,32 @@ async function processCapture(payload) {
     exactText
   });
   const previousHash = existing?.hash !== hash ? existing?.hash : "";
+
+  if (!payload.fromQueue && existing && existing.status !== "synced" && isCaptureQueued(hash, previousHash, fullFileHash, legacyNameHash)) {
+    const record = {
+      ...existing,
+      hash,
+      pdfFingerprint,
+      pdfContentFingerprint,
+      rects: Array.isArray(existing.rects) && existing.rects.length > 0 ? existing.rects : rects,
+      updatedAt: now
+    };
+
+    const highlights = saveHighlight(record, previousHash);
+    if (previousHash) {
+      removeFromQueue(previousHash);
+    }
+    saveQueue(record);
+
+    return {
+      ok: false,
+      duplicate: true,
+      record,
+      error: record.error || "This highlight is already queued for retry.",
+      highlights,
+      queue: getQueue()
+    };
+  }
 
   if (existing?.status === "synced") {
     const hasStoredRects = Array.isArray(existing.rects) && existing.rects.length > 0;
@@ -933,8 +1088,10 @@ async function processCapture(payload) {
     pageNumber,
     rects: rects.length > 0 ? rects : existing?.rects || [],
     question: "",
+    aiAnswer: "",
     status: "pending",
     error: "",
+    retryCount: Number(existing?.retryCount || payload.retryCount || 0),
     createdAt: existing?.createdAt || now,
     updatedAt: now
   };
@@ -946,12 +1103,32 @@ async function processCapture(payload) {
   saveQueue(record);
 
   try {
-    const question = existing?.question || await generateQuestion({ exactText, settings });
-    const notionBlockId = existing?.notionBlockId || await appendToggleToNotion({ settings, question, exactText, pdfName, pageNumber });
+    const studyItem = existing?.question && existing?.aiAnswer
+      ? { question: existing.question, aiAnswer: existing.aiAnswer }
+      : await generateStudyItem({ exactText, settings });
+    record = {
+      ...record,
+      question: studyItem.question,
+      aiAnswer: studyItem.aiAnswer
+    };
+
+    if (payload.isOnline === false) {
+      throw new Error("Offline: generated locally with Ollama. Notion sync is queued until you reconnect.");
+    }
+
+    const notionBlockId = existing?.notionBlockId || await appendToggleToNotion({
+      settings,
+      question: studyItem.question,
+      aiAnswer: studyItem.aiAnswer,
+      exactText,
+      pdfName,
+      pageNumber
+    });
 
     record = {
       ...record,
-      question,
+      question: studyItem.question,
+      aiAnswer: studyItem.aiAnswer,
       notionBlockId,
       status: "synced",
       error: "",
@@ -972,10 +1149,16 @@ async function processCapture(payload) {
     record = {
       ...record,
       question: record.question || existing?.question || "",
+      aiAnswer: record.aiAnswer || existing?.aiAnswer || "",
       status: "failed",
+      retryCount: Number(record.retryCount || 0) + 1,
       error: error.message || String(error),
       updatedAt: new Date().toISOString()
     };
+
+    if (record.retryCount >= MAX_QUEUE_ATTEMPTS) {
+      record.error = `${record.error} Stopped automatic retries after ${MAX_QUEUE_ATTEMPTS} failed attempts. Fix setup, then capture it again.`;
+    }
 
     saveHighlight(record);
     saveQueue(record);
@@ -1041,9 +1224,15 @@ async function processDeleteCapture(hash) {
     const deleteRecord = {
       ...record,
       status: "delete_failed",
+      deleteRetryCount: Number(record.deleteRetryCount || 0) + 1,
       error: pendingMessage,
       updatedAt: new Date().toISOString()
     };
+
+    if (deleteRecord.deleteRetryCount >= MAX_QUEUE_ATTEMPTS) {
+      deleteRecord.error = `${pendingMessage} Stopped automatic delete retries after ${MAX_QUEUE_ATTEMPTS} failed attempts.`;
+    }
+
     saveDeleteQueue(deleteRecord);
 
     return {
@@ -1250,7 +1439,7 @@ ipcMain.handle("queue:retry", async () => {
       error: "",
       updatedAt: new Date().toISOString()
     });
-    results.push(await processCapture(item));
+    results.push(await processCapture({ ...item, fromQueue: true }));
   }
 
   for (const item of pendingDeletes) {

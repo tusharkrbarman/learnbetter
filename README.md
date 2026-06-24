@@ -4,69 +4,325 @@
 [![Build Windows Installer](https://github.com/tusharkrbarman/learnbetter/actions/workflows/build-installer.yml/badge.svg)](https://github.com/tusharkrbarman/learnbetter/actions/workflows/build-installer.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-LearnBetter is an open-source Windows desktop PDF reader for students, readers, and researchers who want to turn PDF highlights into AI-generated study questions in Notion.
+LearnBetter is an open-source Windows desktop app that turns PDF highlights into study questions inside Notion.
 
-Select text in a PDF, right-click to capture it, and LearnBetter creates a Notion toggle where the title is a locally generated study question and the answer is the exact highlighted text. It uses Ollama for local LLM question generation, plus Notion OAuth, Notion internal integrations, PDF.js highlighting, and GitHub Actions Windows installer builds.
+Open a PDF, select important text, right-click, and LearnBetter creates a Notion toggle with:
+
+- one grounded study question
+- one AI-generated answer based only on the selected text
+- the exact copied PDF text
+- the book title and page number
+
+Question generation runs locally with [Ollama](https://ollama.com/), so the app does not require an OpenAI API key or a hosted LLM subscription.
 
 ## Keywords
 
-PDF reader, local AI study app, Notion integration, Notion toggle questions, PDF highlights to Notion, AI flashcards, Electron PDF reader, Ollama local AI, local LLM study questions, Windows desktop app, PDF.js, spaced repetition workflow.
+PDF reader, Notion study app, PDF highlights to Notion, local AI study questions, Ollama desktop app, local LLM, Notion toggle questions, AI flashcards, Electron PDF reader, PDF.js highlighter, Windows study app, open-source learning tool.
 
 ## Features
 
 - Open PDFs in a minimalist Windows desktop reader.
 - Select text normally with the left mouse button.
-- Right-click selected text to capture the highlight.
-- Generate one study question per highlight.
-- Append each question to a Notion page as a toggle block.
-- Keep the answer exactly equal to the selected PDF text.
-- Preserve multi-line highlights and reload saved highlights when the same PDF is opened.
-- Remove local highlights and delete the related Notion toggle for new captures.
-- Prevent duplicate captures with PDF file/content fingerprints, page number, and exact text.
-- Restore highlights from a matching document version when a PDF is re-saved without meaningful text changes.
-- Queue failed Notion sync/delete operations for retry.
-- Generate questions with local Ollama models.
-- Connect Notion with OAuth or an internal integration token.
-- Build a Windows `.exe` installer with GitHub Actions.
+- Right-click selected text to capture it.
+- Generate a study question and AI answer with a local Ollama model.
+- Append each capture to one Notion page as a toggle block.
+- Preserve the copied answer text exactly as selected from the PDF.
+- Keep multi-line highlights together as one capture.
+- Reload saved highlights when the same PDF is opened again.
+- Match PDFs by fingerprint and content signature, not just filename.
+- Restore highlights when a PDF is re-saved without meaningful text changes.
+- Prevent duplicate captures while a sync is pending.
+- Queue failed Notion sync and delete operations for retry.
+- Support Notion internal integration tokens and Notion OAuth.
+- Build a Windows installer with GitHub Actions.
 
 ## How It Works
 
 ```text
-PDF selection -> right-click capture -> AI question -> Notion toggle
+PDF selection -> right-click capture -> Ollama question/answer -> Notion toggle
 ```
 
 Notion output:
 
 ```text
-> AI-generated question
-  Exact highlighted PDF text
+> AI-generated study question
+  AI answer
+  Concise answer generated from the selected text.
+
+  Copied text
+  Exact highlighted PDF text.
+
   Source: Book title, page number
 ```
 
-The answer text is never paraphrased, summarized, corrected, or rewritten.
+The copied text is never paraphrased, summarized, corrected, or rewritten.
 
 ## Download
 
-The Windows installer is built by GitHub Actions.
+The Windows installer is published through GitHub Releases.
 
-1. Open [Build Windows Installer](https://github.com/tusharkrbarman/learnbetter/actions/workflows/build-installer.yml).
-2. Open the latest successful workflow run.
-3. Download the `learnbetter-windows-installer` artifact.
-4. Extract the artifact ZIP and run the installer `.exe`.
+1. Open [LearnBetter Releases](https://github.com/tusharkrbarman/learnbetter/releases).
+2. Download the latest Windows installer `.exe`.
+3. Run the installer.
+4. Start LearnBetter from the Start menu or desktop shortcut.
 
-Artifacts are temporary. For long-term downloads, use tagged releases once release publishing is added.
+If you are testing a pre-release build, choose the latest release marked as a pre-release.
 
-## Quick Start From Source
+## Requirements
 
-Requirements:
+- Windows 10 or Windows 11
+- A Notion account
+- A Notion page where LearnBetter can append toggles
+- Ollama installed and running locally
+- One local Ollama model, such as `llama3.1:8b`
 
-- Windows 10 or later
+For development from source, you also need:
+
 - Node.js 22 or later
 - npm
-- Notion account
-- Local Ollama installation
+- Git
 
-Install and run:
+## Quick Start
+
+1. Install Ollama.
+2. Pull an Ollama model.
+3. Create a Notion page for your study questions.
+4. Share that page with your Notion integration.
+5. Open LearnBetter.
+6. Paste your Notion page link and Ollama settings.
+7. Open a PDF.
+8. Select text with the left mouse button.
+9. Right-click the selected text to capture it.
+10. Open Notion and check the new toggle.
+
+## Set Up Ollama
+
+LearnBetter uses Ollama to generate questions and AI answers locally on your computer.
+
+### 1. Install Ollama On Windows
+
+1. Download Ollama from the official Windows page: [ollama.com/download/windows](https://ollama.com/download/windows).
+2. Run the installer.
+3. After installation, Ollama should run in the background.
+
+### 2. Check That Ollama Works
+
+Open PowerShell and run:
+
+```powershell
+ollama --version
+```
+
+You can also check which models are installed:
+
+```powershell
+ollama list
+```
+
+If Ollama is running, its local API is usually available at:
+
+```text
+http://localhost:11434
+```
+
+### 3. Pull The Recommended Model
+
+LearnBetter defaults to `llama3.1:8b`.
+
+Pull it with:
+
+```powershell
+ollama pull llama3.1:8b
+```
+
+This download can take time because the model is large.
+
+### 4. Test The Model
+
+Run:
+
+```powershell
+ollama run llama3.1:8b
+```
+
+Then type:
+
+```text
+Write one study question about operating systems.
+```
+
+To exit the chat, type:
+
+```text
+/bye
+```
+
+### 5. Configure Ollama In LearnBetter
+
+In LearnBetter, use:
+
+```text
+AI provider: Ollama local
+Ollama URL: http://localhost:11434
+Ollama model: llama3.1:8b
+```
+
+Click `Save Setup`, then click `Check`.
+
+### Ollama Troubleshooting
+
+If LearnBetter says Ollama is not running:
+
+- Start Ollama from the Start menu.
+- Run `ollama --version` in PowerShell.
+- Keep the Ollama app running, then click `Retry` or `Check` in LearnBetter.
+
+If LearnBetter says the model is missing:
+
+```powershell
+ollama pull llama3.1:8b
+```
+
+If generation is slow:
+
+- The first request after startup can be slower.
+- Local generation speed depends on CPU, GPU, RAM, and model size.
+- You can use a smaller Ollama model and update the model name in LearnBetter.
+
+## Set Up Notion
+
+LearnBetter needs permission to append blocks to one destination Notion page.
+
+The easiest personal setup is a Notion internal integration token. OAuth is also supported for a more public-app style flow.
+
+### Option 1: Internal Integration Token
+
+Use this option if you are setting up LearnBetter for yourself.
+
+1. Open the Notion integrations page: [notion.so/my-integrations](https://www.notion.so/my-integrations).
+2. Create a new internal integration.
+3. Give it a clear name, such as `LearnBetter`.
+4. Copy the internal integration token.
+5. In Notion, create a normal page where you want study questions to appear.
+6. Open that page.
+7. Click the `...` menu in the top-right corner.
+8. Choose `Add connections`.
+9. Search for your `LearnBetter` integration.
+10. Add it to the page and confirm access.
+11. Copy the Notion page URL from your browser or Notion app.
+12. Open LearnBetter.
+13. Choose `Internal token`.
+14. Paste the Notion token.
+15. Paste the Notion page URL or page ID.
+16. Click `Save Setup`.
+17. Click `Check`.
+
+If the page is not shared with the integration, Notion will reject the request even if your token is correct.
+
+### Option 2: Notion OAuth
+
+Use this option if you want to test a public integration flow.
+
+1. Create or open a Notion public integration.
+2. Add this redirect URI:
+
+```text
+http://127.0.0.1:45891/notion/callback
+```
+
+3. Copy the OAuth client ID and client secret.
+4. In LearnBetter, choose `OAuth`.
+5. Paste the client ID and client secret.
+6. Paste the destination Notion page URL or page ID.
+7. Click `Connect Notion`.
+8. Approve the Notion connection in the browser.
+9. Return to LearnBetter and click `Check`.
+
+OAuth connects your workspace, but LearnBetter still needs the destination page URL or page ID so it knows where to append toggles.
+
+### Finding The Notion Page ID
+
+You can paste the full Notion page URL into LearnBetter. The app will extract the page ID automatically.
+
+A Notion page ID is a 32-character identifier at the end of a Notion page URL. LearnBetter accepts either:
+
+```text
+https://www.notion.so/workspace/My-Study-Page-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+```
+
+or:
+
+```text
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+```
+
+### Notion Troubleshooting
+
+If LearnBetter says the page is inaccessible:
+
+- Open the destination page in Notion.
+- Click `...`.
+- Click `Add connections`.
+- Add your LearnBetter integration.
+- Click `Check` again in LearnBetter.
+
+If LearnBetter says the page URL is invalid:
+
+- Paste the full Notion page URL again.
+- Or paste only the 32-character page ID.
+- Make sure you are using a page, not a database view URL.
+
+If OAuth is connected but the page is missing:
+
+- Paste the destination page URL or page ID in LearnBetter.
+- Save setup again.
+
+## Using LearnBetter
+
+1. Start Ollama.
+2. Start LearnBetter.
+3. Confirm Notion and Ollama both show as connected.
+4. Click `Open PDF`.
+5. Select text with the left mouse button.
+6. Right-click the selected text.
+7. Wait for the capture status to finish generating and syncing.
+8. Open your Notion page.
+9. Expand the new toggle to see the AI answer and exact copied text.
+
+Keyboard shortcuts:
+
+- `Esc`: clear the current PDF text selection.
+- `Ctrl+Z`: clear the current PDF text selection.
+- `Ctrl+F`: search inside the PDF.
+- `Ctrl++`: zoom in.
+- `Ctrl+-`: zoom out.
+- `Ctrl+0`: reset zoom.
+
+## Offline And Retry Behavior
+
+LearnBetter separates local question generation from Notion sync.
+
+- If Ollama is running but the internet is offline, LearnBetter can still generate the question and AI answer locally.
+- If Notion sync fails, the capture stays in the retry queue.
+- Click `Retry` after reconnecting.
+- Duplicate captures are blocked while the same highlight is already pending.
+- Repeated failures are capped so the queue does not grow forever.
+
+## Removing Captures
+
+When you remove a capture, LearnBetter removes the local highlight and tries to delete the related Notion toggle.
+
+If Notion delete fails:
+
+- the local highlight is removed
+- the Notion cleanup stays in the retry queue
+- LearnBetter shows that Notion cleanup is pending
+
+Click `Retry` after fixing the Notion connection.
+
+## Development From Source
+
+Clone and run:
 
 ```powershell
 git clone https://github.com/tusharkrbarman/learnbetter.git
@@ -74,69 +330,6 @@ cd learnbetter
 npm install
 npm start
 ```
-
-## Notion Setup
-
-LearnBetter supports two Notion connection modes.
-
-### Option 1: Notion OAuth
-
-Use this when you want a cleaner public-app style setup.
-
-1. Create a public Notion integration.
-2. Add this redirect URI:
-
-```text
-http://127.0.0.1:45891/notion/callback
-```
-
-3. In LearnBetter, choose `OAuth`.
-4. Paste your Notion OAuth client ID and client secret.
-5. Paste the destination Notion page link or page ID.
-6. Click `Connect Notion`.
-
-Notion OAuth grants page access, but it does not normally return the ID of an existing selected page. LearnBetter still asks for the destination page link or ID so it knows where to append toggles.
-
-### Option 2: Internal Integration Token
-
-Use this for a simple personal setup.
-
-1. Create an internal Notion integration.
-2. Copy the integration token.
-3. Share your target Notion page with that integration.
-4. In LearnBetter, choose `Internal token`.
-5. Paste the token and the destination Notion page link or page ID.
-6. Save setup and check the connection status.
-
-## Local LLM Setup
-
-Run Ollama locally before capturing highlights.
-
-Default settings:
-
-```text
-Ollama URL: http://localhost:11434
-Model: llama3.1:8b
-```
-
-Ollama lets LearnBetter generate questions locally without sending highlight text to a hosted service.
-
-## Usage
-
-1. Open a PDF.
-2. Select text with the left mouse button.
-3. Right-click the selected text.
-4. LearnBetter highlights the text, generates a question, and appends a Notion toggle.
-5. Use `Retry` if a Notion or AI sync fails.
-
-Keyboard shortcuts:
-
-- `Esc`: clear current PDF text selection.
-- `Ctrl+Z`: clear current PDF text selection.
-- `Ctrl+F`: search inside the PDF.
-- `Ctrl++`, `Ctrl+-`, `Ctrl+0`: zoom controls.
-
-## Development
 
 Useful scripts:
 
@@ -152,7 +345,26 @@ Script details:
 - `npm run icons`: regenerates app icon assets.
 - `npm run dist:win`: builds a Windows NSIS installer in `dist/`.
 
-Tech stack:
+Syntax checks:
+
+```powershell
+node --check src/main/main.js
+node --check src/main/preload.js
+node --check src/renderer/renderer.mjs
+```
+
+## Project Structure
+
+```text
+src/main/        Electron main process, Notion API, Ollama API, local store
+src/renderer/    PDF reader UI, PDF.js viewer, highlight capture
+assets/          App icons and visual assets
+site/            Static download website
+deploy/          Kubernetes and Argo CD examples
+.github/         CI, installer build, release, Pages, Dependabot
+```
+
+## Tech Stack
 
 - Electron
 - PDF.js
@@ -161,14 +373,14 @@ Tech stack:
 - electron-store
 - electron-builder
 - GitHub Actions
+- GitHub Pages
 - Kubernetes manifests
 - Argo CD application manifest
-- GitHub Pages
 - Dependabot
 
-## Download Website
+## Website
 
-The `site/` folder contains a minimalist static download website for LearnBetter. The site links to the latest GitHub Release and can run locally, on GitHub Pages, in Docker, or in Kubernetes.
+The `site/` folder contains a minimalist static website for LearnBetter.
 
 Preview locally:
 
@@ -177,80 +389,54 @@ cd site
 python -m http.server 8080
 ```
 
-The simple production path deploys `site/` to GitHub Pages through `.github/workflows/pages.yml`. In the repository settings, configure Pages to use **GitHub Actions** as the source. After that, pushes to `main` that change `site/**` will publish the website automatically.
-
-## Local GitOps Website Deployment
-
-The advanced platform-engineering path keeps the same website but deploys it to Kubernetes through Argo CD.
-
-Build the local container image:
-
-```powershell
-docker build -t learnbetter-site:local site
-```
-
-Deploy to a local Kubernetes cluster after loading the image into your cluster runtime:
-
-```powershell
-kubectl apply -k deploy/learnbetter-site
-```
-
-The Argo CD example application is in:
+Then open:
 
 ```text
-deploy/argocd/learnbetter-site-application.yaml
+http://localhost:8080
 ```
 
-For a local Argo CD demo, point Argo CD at this repository and sync the `deploy/learnbetter-site` path. If you use `kind` or `k3d`, load `learnbetter-site:local` into the cluster before syncing.
+The simple production path deploys `site/` to GitHub Pages through `.github/workflows/pages.yml`.
 
 ## CI/CD
 
 This repository includes:
 
-- `CI`: runs project checks, syntax checks, and high-severity npm audit.
-- `Build Windows Installer`: builds a Windows `.exe` installer and uploads it as an artifact.
-- `Deploy Website`: publishes the static download website to GitHub Pages.
+- `CI`: project checks, syntax checks, and high-severity npm audit.
+- `Build Windows Installer`: Windows `.exe` installer build.
+- `Release Installer`: uploads the installer to a GitHub Release when a version tag is pushed.
+- `Deploy Website`: publishes the static website to GitHub Pages.
 - `Dependabot`: checks npm dependencies and GitHub Actions updates.
 
-The installer workflow can be triggered manually from GitHub Actions or automatically by pushing a version tag like:
+Create a release build:
 
 ```powershell
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-## Roadmap
-
-- Store secrets in Windows Credential Manager.
-- Add GitHub Releases for permanent installer downloads.
-- Add screenshots and demo GIFs.
-- Add automated smoke tests for the Electron main process.
-- Improve Notion OAuth onboarding messages.
-- Add import/export/reset settings tools.
-- Add optional spaced-repetition review mode.
-
 ## Privacy And Security
 
-- API keys and Notion tokens should never be committed.
-- Local setup data is stored with Electron Store under the app name `learnbetter`.
-- Highlight text is sent to Ollama only when generating a question.
-- Question generation runs locally through your configured Ollama model.
-- Notion receives captured highlights because it stores the generated question toggles.
+- LearnBetter does not need an OpenAI key.
+- Highlight text is sent to your local Ollama server for question and answer generation.
+- Notion receives the generated question, generated answer, exact copied text, and source metadata.
+- Notion tokens and setup data are stored locally with Electron Store under the app name `learnbetter`.
+- Do not commit Notion tokens, OAuth secrets, `.env` files, certificates, or keys.
 
-The repository ignores `.env`, `.env.*`, certificate/key files, dependency folders, build outputs, and local cache files.
+The repository ignores dependency folders, build outputs, local cache files, `.env`, `.env.*`, certificate files, and key files.
 
-## Contributing
+## Open Source
 
-Issues, feature requests, and pull requests are welcome.
+LearnBetter is open source under the MIT License.
 
-Good first contribution areas:
+Issues, feature requests, and pull requests are welcome. Good contribution areas include:
 
-- README screenshots
-- Notion setup UX
-- Installer/release automation
+- Notion onboarding UX
 - PDF highlighting edge cases
-- Local model provider improvements
+- Local model prompt quality
+- Installer and release polish
+- Accessibility
 - Test coverage
+- Documentation screenshots and demo videos
 
 Before opening a pull request:
 
@@ -261,6 +447,13 @@ node --check src/main/main.js
 node --check src/main/preload.js
 node --check src/renderer/renderer.mjs
 ```
+
+## Official Setup References
+
+- [Notion API quick start](https://developers.notion.com/guides/get-started/quick-start)
+- [Notion OAuth authorization](https://developers.notion.com/guides/get-started/authorization)
+- [Ollama for Windows](https://ollama.com/download/windows)
+- [Ollama llama3.1 model](https://ollama.com/library/llama3.1)
 
 ## License
 
