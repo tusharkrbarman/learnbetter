@@ -71,6 +71,8 @@ const ZOOM_MIN = 0.75;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.15;
 const ZOOM_DEFAULT = 1.35;
+const CAPTURE_DEFAULT_LABEL = "Capture Selection";
+const CAPTURE_BUSY_LABEL = "Generating...";
 const SIDEBAR_MIN_WIDTH = 280;
 const SIDEBAR_MAX_WIDTH = 640;
 const SIDEBAR_DEFAULT_WIDTH = 320;
@@ -245,6 +247,12 @@ function setBusy(isBusy) {
   updateZoomControls(isBusy);
 }
 
+function setCaptureGenerating(isGenerating) {
+  els.captureHighlight.textContent = isGenerating ? CAPTURE_BUSY_LABEL : CAPTURE_DEFAULT_LABEL;
+  els.captureHighlight.classList.toggle("is-generating", isGenerating);
+  els.captureHighlight.setAttribute("aria-busy", String(isGenerating));
+}
+
 function updateZoomControls(isBusy = state.isRendering) {
   const hasPdf = Boolean(state.pdf);
   els.zoomOut.disabled = isBusy || !hasPdf || state.scale <= ZOOM_MIN;
@@ -349,11 +357,11 @@ function renderCaptureList(highlights = []) {
 
     const badge = document.createElement("span");
     badge.className = `badge ${item.status || "pending"}`;
-    badge.textContent = item.status || "pending";
+    badge.textContent = String(item.status || "pending").replace(/_/g, " ");
 
     node.append(title, preview, badge);
 
-    if (item.hash) {
+    if (item.hash && item.status !== "delete_failed") {
       const actions = document.createElement("div");
       actions.className = "capture-actions";
 
@@ -372,6 +380,7 @@ function renderCaptureList(highlights = []) {
 
     if (item.error) {
       const error = document.createElement("p");
+      error.className = "capture-error";
       error.textContent = item.error;
       node.append(error);
     }
@@ -411,9 +420,28 @@ function getCapturesForCurrentPdf(highlights = []) {
   return highlights.filter((item) => isCaptureForPdf(item));
 }
 
-function renderVisibleCaptures(highlights = []) {
+function getCaptureSourceParts(source = []) {
+  if (Array.isArray(source)) {
+    return {
+      highlights: source,
+      deleteQueue: []
+    };
+  }
+
+  return {
+    highlights: source.highlights || [],
+    deleteQueue: source.deleteQueue || []
+  };
+}
+
+function renderVisibleCaptures(source = []) {
+  const { highlights, deleteQueue } = getCaptureSourceParts(source);
+
   if (state.pdfName) {
-    renderCaptureList(getCapturesForCurrentPdf(highlights));
+    renderCaptureList([
+      ...getCapturesForCurrentPdf(highlights),
+      ...deleteQueue.filter((item) => isCaptureForPdf(item))
+    ]);
   } else {
     renderSessionCaptures(highlights);
   }
@@ -973,7 +1001,8 @@ async function captureHighlight() {
   window.getSelection()?.removeAllRanges();
   state.isSyncing = true;
   setBusy(true);
-  setStatus("Generating question and syncing to Notion...");
+  setCaptureGenerating(true);
+  setStatus("Generating question locally with Ollama, then syncing to Notion...");
 
   try {
     const result = await window.notionPdf.createCapture({
@@ -997,6 +1026,7 @@ async function captureHighlight() {
     }
   } finally {
     state.isSyncing = false;
+    setCaptureGenerating(false);
     setBusy(false);
   }
 }
@@ -1020,14 +1050,14 @@ async function removeCapture(hash) {
     state.sessionCaptureHashes.delete(hash);
     state.visualHighlights = getHighlightRectsForPdf(result.highlights);
     redrawVisualHighlightsSoon();
-    renderVisibleCaptures(result.highlights);
+    renderVisibleCaptures(result);
 
     if (result.ok && result.localOnly) {
       setStatus(result.warning || "Local highlight removed.", "success");
     } else if (result.ok) {
       setStatus("Highlight removed and Notion toggle deleted.", "success");
     } else {
-      setStatus(`Highlight removed locally. Notion delete queued: ${result.error}`, "error");
+      setStatus(result.error || "Local highlight was removed. Notion cleanup is pending.", "error");
     }
   } finally {
     state.isSyncing = false;
@@ -1125,7 +1155,7 @@ async function retryQueue() {
     for (const retryResult of result.results || []) {
       rememberSessionCapture(retryResult.record);
     }
-    renderVisibleCaptures(result.highlights);
+    renderVisibleCaptures(result);
     setStatus(result.ok ? "Queue synced." : "Some captures still failed.", result.ok ? "success" : "error");
   } finally {
     setBusy(false);
@@ -1174,7 +1204,7 @@ async function autoRetryQueue() {
     for (const retryResult of result.results || []) {
       rememberSessionCapture(retryResult.record);
     }
-    renderVisibleCaptures(result.highlights);
+    renderVisibleCaptures(result);
     setStatus(result.ok ? "Queued captures synced." : "Some queued captures still failed.", result.ok ? "success" : "error");
   } catch (error) {
     setStatus(error.message || "Could not retry queued captures.", "error");

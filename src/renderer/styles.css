@@ -194,6 +194,12 @@ select:focus {
   background: #343941;
 }
 
+.secondary-button.is-generating {
+  border-color: #c9b56a;
+  color: #6f5413;
+  background: #fff8d9;
+}
+
 .secondary-button,
 .icon-button,
 .zoom-value {
@@ -220,6 +226,12 @@ select:focus {
   border-color: #e0e0da;
   background: #f1f1ed;
   cursor: not-allowed;
+}
+
+.secondary-button.is-generating:disabled {
+  border-color: #c9b56a;
+  color: #6f5413;
+  background: #fff8d9;
 }
 
 .icon-button {
@@ -525,6 +537,10 @@ body[data-notion-auth="oauth"] .oauth-actions {
   -webkit-line-clamp: 3;
 }
 
+.capture-item .capture-error {
+  color: #a33a2f;
+}
+
 .capture-actions {
   margin-top: 7px;
 }
@@ -546,6 +562,11 @@ body[data-notion-auth="oauth"] .oauth-actions {
 }
 
 .badge.failed {
+  color: #a33a2f;
+  background: #f4e2df;
+}
+
+.badge.delete_failed {
   color: #a33a2f;
   background: #f4e2df;
 }

@@ -223,6 +223,86 @@ function cleanBaseUrl(url, fallback = "http://localhost:11434") {
   return raw.replace(/\/+$/, "");
 }
 
+function isConnectionRefusedError(error) {
+  const message = `${error?.message || ""} ${error?.cause?.message || ""} ${error?.cause?.code || ""}`;
+  return /fetch failed|failed to fetch|ECONNREFUSED|ECONNRESET|ENOTFOUND|EHOSTUNREACH/i.test(message);
+}
+
+function getOllamaModel(settings) {
+  return String(settings.ollamaModel || "llama3.1:8b").trim();
+}
+
+function getOllamaModelMissingMessage(settings) {
+  const model = getOllamaModel(settings) || "llama3.1:8b";
+  return `Ollama model "${model}" is not available. Run: ollama pull ${model}`;
+}
+
+function isOllamaModelMissingError(errorOrText) {
+  const message = String(errorOrText?.message || errorOrText || "");
+  return /model .*not found|model .*does not exist|not found/i.test(message);
+}
+
+function formatOllamaError(error, settings) {
+  if (isConnectionRefusedError(error)) {
+    return "Ollama is not running. Start Ollama, then retry.";
+  }
+
+  if (isOllamaModelMissingError(error)) {
+    return getOllamaModelMissingMessage(settings);
+  }
+
+  return error.message || String(error);
+}
+
+function normalizeGeneratedQuestion(rawQuestion) {
+  const raw = String(rawQuestion || "").trim();
+  if (!raw) {
+    throw new Error("Ollama did not return a question.");
+  }
+
+  const paragraphs = raw.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+  if (paragraphs.length > 1) {
+    throw new Error("Ollama returned multiple paragraphs instead of one question. Try again or use a smaller selection.");
+  }
+
+  const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    throw new Error("Ollama returned multiple lines instead of one question. Try again or use a smaller selection.");
+  }
+
+  const withoutPrefix = raw.replace(/^(question|q)\s*[:.)-]\s*/i, "").trim();
+  if (/^answer\s*[:.)-]/i.test(withoutPrefix)) {
+    throw new Error("Ollama returned an answer instead of a question. Try again.");
+  }
+
+  const questionEnd = withoutPrefix.indexOf("?");
+  if (questionEnd === -1) {
+    throw new Error("Ollama returned text that was not a question. Try again.");
+  }
+
+  const question = withoutPrefix.slice(0, questionEnd + 1).replace(/^["']|["']$/g, "").trim();
+  if (question.length > 220) {
+    throw new Error("Ollama returned a question that was too long. Try a smaller selection.");
+  }
+
+  return question;
+}
+
+function formatNotionError(error) {
+  const message = error.message || String(error);
+  const code = String(error.code || error.body?.code || "");
+
+  if (/object_not_found|unauthorized|restricted_resource/i.test(code) || /Could not find block|Could not find page|Make sure the relevant pages and databases are shared/i.test(message)) {
+    return "Notion cannot access this page. Share the destination page with your Notion integration, then retry.";
+  }
+
+  if (/validation_error/i.test(code) || /invalid/i.test(message)) {
+    return "Notion rejected the page or block request. Check the destination page link or ID.";
+  }
+
+  return message;
+}
+
 function cleanRedirectUri(value) {
   return String(value || DEFAULT_NOTION_REDIRECT_URI).trim() || DEFAULT_NOTION_REDIRECT_URI;
 }
@@ -499,36 +579,60 @@ async function generateQuestion({ exactText, settings }) {
 }
 
 async function generateOllamaQuestion({ exactText, settings }) {
-  const model = String(settings.ollamaModel || "llama3.1:8b").trim();
+  const model = getOllamaModel(settings);
   if (!model) {
     throw new Error("Ollama model is missing.");
   }
 
-  const response = await fetch(`${cleanBaseUrl(settings.ollamaBaseUrl)}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages: getQuestionMessages(exactText),
-      stream: false,
-      options: {
-        temperature: 0.2
-      }
-    })
-  });
+  try {
+    const response = await fetch(`${cleanBaseUrl(settings.ollamaBaseUrl)}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: getQuestionMessages(exactText),
+        stream: false,
+        options: {
+          temperature: 0.2
+        }
+      })
+    });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `Ollama returned HTTP ${response.status}.`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body || `Ollama returned HTTP ${response.status}.`);
+    }
+
+    const data = await response.json();
+    return normalizeGeneratedQuestion(data.message?.content);
+  } catch (error) {
+    throw new Error(formatOllamaError(error, settings));
+  }
+}
+
+async function validateNotionDestination({ settings, notionPageInput, notionPageId }) {
+  if (!notionPageInput) {
+    throw new Error("Paste the destination Notion page link or ID before saving setup.");
   }
 
-  const data = await response.json();
-  const question = data.message?.content?.trim();
-  if (!question) {
-    throw new Error("Ollama did not return a question.");
+  if (!notionPageId) {
+    throw new Error("Notion page link or ID is invalid. Paste a Notion page URL or 32-character page ID.");
   }
 
-  return question;
+  const token = settings.notionToken || "";
+  if (!token) {
+    return;
+  }
+
+  try {
+    const notion = makeNotion(token);
+    await notion.blocks.children.list({
+      block_id: notionPageId,
+      page_size: 1
+    });
+  } catch (error) {
+    throw new Error(formatNotionError(error));
+  }
 }
 
 async function checkNotionConnection(settings) {
@@ -546,7 +650,9 @@ async function checkNotionConnection(settings) {
   if (!settings.notionPageId) {
     return {
       status: "missing",
-      message: "Page missing"
+      message: isOAuthMode(settings)
+        ? "OAuth connected. Paste the destination Notion page link or ID, then save setup."
+        : "Paste the destination Notion page link or ID."
     };
   }
 
@@ -564,13 +670,13 @@ async function checkNotionConnection(settings) {
   } catch (error) {
     return {
       status: "error",
-      message: error.message || String(error)
+      message: formatNotionError(error)
     };
   }
 }
 
 async function checkOllamaConnection(settings) {
-  const model = String(settings.ollamaModel || "llama3.1:8b").trim();
+  const model = getOllamaModel(settings);
   if (!model) {
     return {
       status: "missing",
@@ -599,7 +705,7 @@ async function checkOllamaConnection(settings) {
   } catch (error) {
     return {
       status: "error",
-      message: error.message || String(error),
+      message: formatOllamaError(error, settings),
       provider: "ollama"
     };
   }
@@ -629,19 +735,23 @@ async function appendToggleToNotion({ settings, question, exactText, pdfName, pa
   }
 
   const notion = makeNotion(settings.notionToken);
-  const response = await notion.blocks.children.append({
-    block_id: settings.notionPageId,
-    children: [
-      makeToggleBlock({
-        question,
-        exactText,
-        bookTitle: settings.bookTitle,
-        pdfName,
-        pageNumber
-      })
-    ]
-  });
-  return response.results?.[0]?.id || "";
+  try {
+    const response = await notion.blocks.children.append({
+      block_id: settings.notionPageId,
+      children: [
+        makeToggleBlock({
+          question,
+          exactText,
+          bookTitle: settings.bookTitle,
+          pdfName,
+          pageNumber
+        })
+      ]
+    });
+    return response.results?.[0]?.id || "";
+  } catch (error) {
+    throw new Error(formatNotionError(error));
+  }
 }
 
 async function deleteNotionBlock({ settings, notionBlockId }) {
@@ -654,9 +764,13 @@ async function deleteNotionBlock({ settings, notionBlockId }) {
   }
 
   const notion = makeNotion(settings.notionToken);
-  await notion.blocks.delete({
-    block_id: notionBlockId
-  });
+  try {
+    await notion.blocks.delete({
+      block_id: notionBlockId
+    });
+  } catch (error) {
+    throw new Error(formatNotionError(error));
+  }
 }
 
 function saveHighlight(record, previousHash = "") {
@@ -923,10 +1037,11 @@ async function processDeleteCapture(hash) {
       deleteQueue: getDeleteQueue()
     };
   } catch (error) {
+    const pendingMessage = `Local highlight was removed. Notion cleanup is pending: ${error.message || String(error)}`;
     const deleteRecord = {
       ...record,
       status: "delete_failed",
-      error: error.message || String(error),
+      error: pendingMessage,
       updatedAt: new Date().toISOString()
     };
     saveDeleteQueue(deleteRecord);
@@ -973,6 +1088,12 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
   for (const key of ["ai" + "Provider", "open" + "aiApiKey", "open" + "aiModel"]) {
     delete merged[key];
   }
+
+  await validateNotionDestination({
+    settings: merged,
+    notionPageInput,
+    notionPageId
+  });
 
   store.set("settings", merged);
   return publicSettings(merged);
