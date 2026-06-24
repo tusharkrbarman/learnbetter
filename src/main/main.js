@@ -137,10 +137,14 @@ function publicSettings(settings = getSettings()) {
   };
 }
 
-function hashHighlight({ pdfFingerprint, pdfName, pageNumber, exactText }) {
+function getPdfIdentity({ pdfContentFingerprint, pdfFingerprint, pdfName }) {
+  return pdfContentFingerprint || pdfFingerprint || pdfName || "";
+}
+
+function hashHighlight({ pdfContentFingerprint, pdfFingerprint, pdfName, pageNumber, exactText }) {
   return crypto
     .createHash("sha256")
-    .update(`${pdfFingerprint || pdfName || ""}\n${pageNumber || ""}\n${exactText || ""}`)
+    .update(`${getPdfIdentity({ pdfContentFingerprint, pdfFingerprint, pdfName })}\n${pageNumber || ""}\n${exactText || ""}`)
     .digest("hex");
 }
 
@@ -708,18 +712,72 @@ function updateHighlightStatus(hash, updates) {
   return highlights;
 }
 
+function rememberPdfIdentity({ pdfFingerprint, pdfContentFingerprint }) {
+  if (!pdfFingerprint || !pdfContentFingerprint) {
+    return {
+      highlights: getHighlights(),
+      queue: getQueue(),
+      deleteQueue: getDeleteQueue()
+    };
+  }
+
+  const addContentFingerprint = (item) => {
+    if (item.pdfFingerprint === pdfFingerprint && !item.pdfContentFingerprint) {
+      return {
+        ...item,
+        pdfContentFingerprint,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    return item;
+  };
+
+  const highlights = getHighlights().map(addContentFingerprint);
+  const queue = getQueue().map(addContentFingerprint);
+  const deleteQueue = getDeleteQueue().map(addContentFingerprint);
+
+  store.set("highlights", highlights);
+  store.set("queue", queue);
+  store.set("deleteQueue", deleteQueue);
+
+  return { highlights, queue, deleteQueue };
+}
+
+function findExistingHighlight({ hash, fullFileHash, legacyNameHash, pdfContentFingerprint, pageNumber, exactText }) {
+  const highlights = getHighlights();
+  return highlights.find((item) => item.hash === hash)
+    || (fullFileHash ? highlights.find((item) => item.hash === fullFileHash) : null)
+    || highlights.find((item) => item.hash === legacyNameHash && !item.pdfFingerprint && !item.pdfContentFingerprint)
+    || (pdfContentFingerprint
+      ? highlights.find((item) => (
+          item.pdfContentFingerprint === pdfContentFingerprint &&
+          Number(item.pageNumber) === pageNumber &&
+          item.exactText === exactText
+        ))
+      : null);
+}
+
 async function processCapture(payload) {
   const settings = await getSettingsForNotionRequest();
   const exactText = String(payload.exactText || "");
   const pdfName = String(payload.pdfName || "Untitled PDF");
   const pdfFingerprint = String(payload.pdfFingerprint || "");
+  const pdfContentFingerprint = String(payload.pdfContentFingerprint || "");
   const pageNumber = Number(payload.pageNumber || 1);
   const rects = sanitizeHighlightRects(payload.rects);
-  const hash = hashHighlight({ pdfFingerprint, pdfName, pageNumber, exactText });
-  const legacyHash = pdfFingerprint ? hashHighlight({ pdfName, pageNumber, exactText }) : hash;
+  const hash = hashHighlight({ pdfContentFingerprint, pdfFingerprint, pdfName, pageNumber, exactText });
+  const fullFileHash = pdfFingerprint ? hashHighlight({ pdfFingerprint, pdfName, pageNumber, exactText }) : "";
+  const legacyNameHash = hashHighlight({ pdfName, pageNumber, exactText });
   const now = new Date().toISOString();
-  const existing = getHighlights().find((item) => item.hash === hash)
-    || getHighlights().find((item) => item.hash === legacyHash && !item.pdfFingerprint);
+  const existing = findExistingHighlight({
+    hash,
+    fullFileHash,
+    legacyNameHash,
+    pdfContentFingerprint,
+    pageNumber,
+    exactText
+  });
   const previousHash = existing?.hash !== hash ? existing?.hash : "";
 
   if (existing?.status === "synced") {
@@ -727,11 +785,12 @@ async function processCapture(payload) {
     let record = existing;
     let highlights = getHighlights();
 
-    if (previousHash || !existing.pdfFingerprint || (!hasStoredRects && rects.length > 0)) {
+    if (previousHash || !existing.pdfFingerprint || (pdfContentFingerprint && !existing.pdfContentFingerprint) || (!hasStoredRects && rects.length > 0)) {
       record = {
         ...existing,
         hash,
         pdfFingerprint,
+        pdfContentFingerprint,
         rects: hasStoredRects ? existing.rects : rects,
         updatedAt: now
       };
@@ -756,6 +815,7 @@ async function processCapture(payload) {
     exactText,
     pdfName,
     pdfFingerprint,
+    pdfContentFingerprint,
     pageNumber,
     rects: rects.length > 0 ? rects : existing?.rects || [],
     question: "",
@@ -1033,6 +1093,13 @@ ipcMain.handle("capture:list", () => {
     queue: getQueue(),
     deleteQueue: getDeleteQueue()
   };
+});
+
+ipcMain.handle("capture:remember-pdf-identity", (_event, payload) => {
+  return rememberPdfIdentity({
+    pdfFingerprint: String(payload?.pdfFingerprint || ""),
+    pdfContentFingerprint: String(payload?.pdfContentFingerprint || "")
+  });
 });
 
 ipcMain.handle("capture:delete", async (_event, hash) => {

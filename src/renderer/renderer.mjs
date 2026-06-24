@@ -52,6 +52,7 @@ const state = {
   pdf: null,
   pdfName: "",
   pdfFingerprint: "",
+  pdfContentFingerprint: "",
   currentPage: 1,
   scale: 1.35,
   visualHighlights: [],
@@ -270,6 +271,64 @@ function escapeText(text) {
   return String(text || "").replace(/\s+/g, " ").trim();
 }
 
+function normalizePdfTextForFingerprint(text) {
+  return String(text || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function fallbackTextHash(text) {
+  let hash = 0x811c9dc5;
+  const normalized = normalizePdfTextForFingerprint(text);
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+async function sha256Text(text) {
+  if (!window.crypto?.subtle) {
+    return fallbackTextHash(text);
+  }
+
+  const bytes = new TextEncoder().encode(text);
+  const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function computePdfContentFingerprint(pdf) {
+  if (!pdf?.numPages) {
+    return "";
+  }
+
+  try {
+    const pageLimit = Math.min(pdf.numPages, 3);
+    const pageTexts = [];
+
+    for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      pageTexts.push(textContent.items.map((item) => item.str || "").join(" "));
+    }
+
+    const normalizedText = normalizePdfTextForFingerprint(pageTexts.join("\n"));
+    if (!normalizedText) {
+      return "";
+    }
+
+    return sha256Text(`pages:${pdf.numPages}\n${normalizedText}`);
+  } catch {
+    return "";
+  }
+}
+
 function renderCaptureList(highlights = []) {
   if (!highlights.length) {
     els.captureList.innerHTML = '<p class="status-line">No captures yet.</p>';
@@ -329,12 +388,23 @@ function renderSessionCaptures(highlights = []) {
   renderCaptureList(highlights.filter((item) => state.sessionCaptureHashes.has(item.hash)));
 }
 
-function isCaptureForPdf(item, pdfName = state.pdfName, pdfFingerprint = state.pdfFingerprint) {
-  if (pdfFingerprint) {
-    return item.pdfFingerprint === pdfFingerprint;
+function isCaptureForPdf(
+  item,
+  pdfName = state.pdfName,
+  pdfFingerprint = state.pdfFingerprint,
+  pdfContentFingerprint = state.pdfContentFingerprint
+) {
+  if (pdfFingerprint && item.pdfFingerprint === pdfFingerprint) {
+    return true;
   }
 
-  return item.pdfName === pdfName;
+  if (pdfContentFingerprint && item.pdfContentFingerprint === pdfContentFingerprint) {
+    return true;
+  }
+
+  const currentHasStrongIdentity = Boolean(pdfFingerprint || pdfContentFingerprint);
+  const itemHasStrongIdentity = Boolean(item.pdfFingerprint || item.pdfContentFingerprint);
+  return (!currentHasStrongIdentity || !itemHasStrongIdentity) && item.pdfName === pdfName;
 }
 
 function getCapturesForCurrentPdf(highlights = []) {
@@ -721,9 +791,14 @@ function redrawVisualHighlightsSoon() {
   });
 }
 
-function getHighlightRectsForPdf(highlights = [], pdfName = state.pdfName, pdfFingerprint = state.pdfFingerprint) {
+function getHighlightRectsForPdf(
+  highlights = [],
+  pdfName = state.pdfName,
+  pdfFingerprint = state.pdfFingerprint,
+  pdfContentFingerprint = state.pdfContentFingerprint
+) {
   return highlights
-    .filter((item) => isCaptureForPdf(item, pdfName, pdfFingerprint) && Array.isArray(item.rects))
+    .filter((item) => isCaptureForPdf(item, pdfName, pdfFingerprint, pdfContentFingerprint) && Array.isArray(item.rects))
     .flatMap((item) => item.rects);
 }
 
@@ -734,16 +809,30 @@ async function loadStoredHighlightsForPdf() {
     return;
   }
 
-  const result = await window.notionPdf.listCaptures();
+  const result = await window.notionPdf.rememberPdfIdentity({
+    pdfFingerprint: state.pdfFingerprint,
+    pdfContentFingerprint: state.pdfContentFingerprint
+  });
+  const visibleCaptures = getCapturesForCurrentPdf(result.highlights);
+  const restoredFromDocumentVersion = visibleCaptures.some((item) => (
+    item.pdfFingerprint !== state.pdfFingerprint &&
+    item.pdfContentFingerprint === state.pdfContentFingerprint
+  ));
+
   state.visualHighlights = getHighlightRectsForPdf(result.highlights);
   renderVisibleCaptures(result.highlights);
   redrawVisualHighlightsSoon();
+
+  if (restoredFromDocumentVersion) {
+    setStatus("Highlights restored from a matching document version.", "success");
+  }
 }
 
 async function renderPdf(pdfData) {
   state.isRendering = true;
   state.pdfName = pdfData.name;
   state.pdfFingerprint = pdfData.fingerprint || "";
+  state.pdfContentFingerprint = "";
   state.currentPage = 1;
   state.scale = ZOOM_DEFAULT;
   state.visualHighlights = [];
@@ -755,6 +844,7 @@ async function renderPdf(pdfData) {
 
   const loadingTask = pdfjsLib.getDocument({ data: bytesToUint8Array(pdfData.bytes) });
   state.pdf = await loadingTask.promise;
+  state.pdfContentFingerprint = await computePdfContentFingerprint(state.pdf);
   state.linkService.setDocument(state.pdf);
   state.findController.setDocument(state.pdf);
   state.pdfViewer.setDocument(state.pdf);
@@ -890,6 +980,7 @@ async function captureHighlight() {
       exactText,
       pdfName: state.pdfName,
       pdfFingerprint: state.pdfFingerprint,
+      pdfContentFingerprint: state.pdfContentFingerprint,
       pageNumber,
       rects
     });

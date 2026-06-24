@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld("notionPdf", {
   createCapture: (payload) => ipcRenderer.invoke("capture:create", payload),
   deleteCapture: (hash) => ipcRenderer.invoke("capture:delete", hash),
   listCaptures: () => ipcRenderer.invoke("capture:list"),
+  rememberPdfIdentity: (payload) => ipcRenderer.invoke("capture:remember-pdf-identity", payload),
   retryQueue: () => ipcRenderer.invoke("queue:retry")
 });

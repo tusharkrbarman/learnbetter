@@ -22,7 +22,8 @@ PDF reader, local AI study app, Notion integration, Notion toggle questions, PDF
 - Keep the answer exactly equal to the selected PDF text.
 - Preserve multi-line highlights and reload saved highlights when the same PDF is opened.
 - Remove local highlights and delete the related Notion toggle for new captures.
-- Prevent duplicate captures with a hash of PDF fingerprint, page number, and exact text.
+- Prevent duplicate captures with PDF file/content fingerprints, page number, and exact text.
+- Restore highlights from a matching document version when a PDF is re-saved without meaningful text changes.
 - Queue failed Notion sync/delete operations for retry.
 - Generate questions with local Ollama models.
 - Connect Notion with OAuth or an internal integration token.
