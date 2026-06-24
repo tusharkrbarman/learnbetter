@@ -24,7 +24,7 @@ PDF reader, Notion study app, PDF highlights to Notion, local AI study questions
 - Open PDFs in a minimalist Windows desktop reader.
 - Select text normally with the left mouse button.
 - Right-click selected text to capture it.
-- Generate a study question and AI answer with a local Ollama model.
+- Generate a study question and AI answer with a local model served by Ollama.
 - Append each capture to one Notion page as a toggle block.
 - Preserve the copied answer text exactly as selected from the PDF.
 - Keep multi-line highlights together as one capture.
@@ -74,7 +74,7 @@ If you are testing a pre-release build, choose the latest release marked as a pr
 - A Notion account
 - A Notion page where LearnBetter can append toggles
 - Ollama installed and running locally
-- One local Ollama model, such as `llama3.1:8b`
+- One local model, such as `gemma4:e4b`, pulled with Ollama
 
 For development from source, you also need:
 
@@ -85,7 +85,7 @@ For development from source, you also need:
 ## Quick Start
 
 1. Install Ollama.
-2. Pull an Ollama model.
+2. Pull a local model with Ollama.
 3. Create a Notion page for your study questions.
 4. Share that page with your Notion integration.
 5. Open LearnBetter.
@@ -127,12 +127,12 @@ http://localhost:11434
 
 ### 3. Pull The Recommended Model
 
-LearnBetter defaults to `llama3.1:8b`.
+LearnBetter defaults to `gemma4:e4b`.
 
 Pull it with:
 
 ```powershell
-ollama pull llama3.1:8b
+ollama pull gemma4:e4b
 ```
 
 This download can take time because the model is large.
@@ -142,7 +142,7 @@ This download can take time because the model is large.
 Run:
 
 ```powershell
-ollama run llama3.1:8b
+ollama run gemma4:e4b
 ```
 
 Then type:
@@ -163,15 +163,15 @@ In LearnBetter, use:
 
 ```text
 AI provider: Ollama local
-Ollama URL: http://localhost:11434
-Ollama model: llama3.1:8b
+Local model URL: http://localhost:11434
+Local model: gemma4:e4b
 ```
 
 Click `Save Setup`, then click `Check`.
 
 ### Ollama Troubleshooting
 
-If LearnBetter says Ollama is not running:
+If LearnBetter says local AI is not running:
 
 - Start Ollama from the Start menu.
 - Run `ollama --version` in PowerShell.
@@ -180,14 +180,14 @@ If LearnBetter says Ollama is not running:
 If LearnBetter says the model is missing:
 
 ```powershell
-ollama pull llama3.1:8b
+ollama pull gemma4:e4b
 ```
 
 If generation is slow:
 
 - The first request after startup can be slower.
 - Local generation speed depends on CPU, GPU, RAM, and model size.
-- You can use a smaller Ollama model and update the model name in LearnBetter.
+- You can use a smaller Ollama model and update the local model name in LearnBetter.
 
 ## Set Up Notion
 
@@ -281,7 +281,7 @@ If OAuth is connected but the page is missing:
 
 1. Start Ollama.
 2. Start LearnBetter.
-3. Confirm Notion and Ollama both show as connected.
+3. Confirm Notion and local AI both show as connected.
 4. Click `Open PDF`.
 5. Select text with the left mouse button.
 6. Right-click the selected text.
@@ -453,7 +453,7 @@ node --check src/renderer/renderer.mjs
 - [Notion API quick start](https://developers.notion.com/guides/get-started/quick-start)
 - [Notion OAuth authorization](https://developers.notion.com/guides/get-started/authorization)
 - [Ollama for Windows](https://ollama.com/download/windows)
-- [Ollama llama3.1 model](https://ollama.com/library/llama3.1)
+- [Ollama Gemma 4 model](https://ollama.com/library/gemma4)
 
 ## License
 

@@ -78,6 +78,7 @@ const SIDEBAR_MAX_WIDTH = 640;
 const SIDEBAR_DEFAULT_WIDTH = 320;
 const SIDEBAR_READER_MIN_WIDTH = 520;
 const SIDEBAR_STORAGE_KEY = "learnbetter.sidebarWidth";
+const DEFAULT_OLLAMA_MODEL = "gemma4:e4b";
 const CONNECTION_LABELS = {
   connected: "Connected",
   error: "Error",
@@ -194,7 +195,7 @@ function setStatus(message, type = "") {
 }
 
 function showOfflineStatus() {
-  setStatus("Offline: Ollama can still generate locally. Notion sync will be queued until you reconnect.", "error");
+  setStatus("Offline: Local AI can still generate. Notion sync will be queued until you reconnect.", "error");
 }
 
 function setProviderStatus(provider, status, message = "") {
@@ -225,7 +226,7 @@ async function refreshConnectionStatus({ showStatus = false } = {}) {
 
     const isConnected = result.notion.status === "connected" && result.ollama.status === "connected";
     if (showStatus) {
-      setStatus(isConnected ? "Notion and Ollama are connected." : "Some connections need attention.", isConnected ? "success" : "error");
+      setStatus(isConnected ? "Notion and local AI are connected." : "Some connections need attention.", isConnected ? "success" : "error");
     }
 
     return result;
@@ -465,7 +466,7 @@ async function loadSettings() {
   els.notionOAuthClientId.value = settings.notionOAuthClientId || "";
   els.notionOAuthRedirectUri.value = settings.notionOAuthRedirectUri || "http://127.0.0.1:45891/notion/callback";
   els.ollamaBaseUrl.value = settings.ollamaBaseUrl || "http://localhost:11434";
-  els.ollamaModel.value = settings.ollamaModel || "llama3.1:8b";
+  els.ollamaModel.value = settings.ollamaModel || DEFAULT_OLLAMA_MODEL;
   els.bookTitle.value = settings.bookTitle || "";
   els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
   els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
@@ -1007,8 +1008,8 @@ async function captureHighlight() {
   setBusy(true);
   setCaptureGenerating(true);
   setStatus(window.navigator.onLine
-    ? "Generating question locally with Ollama, then syncing to Notion..."
-    : "Offline: generating locally with Ollama. Notion sync will be queued.");
+    ? "Generating question with local AI, then syncing to Notion..."
+    : "Offline: generating with local AI. Notion sync will be queued.");
 
   try {
     const result = await window.notionPdf.createCapture({

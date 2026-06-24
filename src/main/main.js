@@ -10,6 +10,8 @@ const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
 const APP_ICON = path.join(__dirname, "../../assets/icons/icon.png");
 const DEFAULT_NOTION_REDIRECT_URI = "http://127.0.0.1:45891/notion/callback";
+const DEFAULT_OLLAMA_MODEL = "gemma4:e4b";
+const LEGACY_OLLAMA_MODELS = new Set(["llama3.1:8b"]);
 const MAX_HIGHLIGHTS = 100;
 const MAX_QUEUE_ITEMS = 50;
 const MAX_DELETE_QUEUE_ITEMS = 50;
@@ -35,7 +37,7 @@ const store = new Store({
       notionOAuthBotId: "",
       notionOAuthWorkspaceName: "",
       ollamaBaseUrl: "http://localhost:11434",
-      ollamaModel: "llama3.1:8b",
+      ollamaModel: DEFAULT_OLLAMA_MODEL,
       bookTitle: ""
     },
     highlights: [],
@@ -142,6 +144,11 @@ function migrateStoreData() {
     delete settings[key];
   }
 
+  const savedOllamaModel = String(settings.ollamaModel || "").trim();
+  const ollamaModel = !savedOllamaModel || LEGACY_OLLAMA_MODELS.has(savedOllamaModel)
+    ? DEFAULT_OLLAMA_MODEL
+    : savedOllamaModel;
+
   store.set("settings", {
     notionAuthMode: settings.notionAuthMode || "token",
     notionToken: settings.notionToken || "",
@@ -154,7 +161,7 @@ function migrateStoreData() {
     notionOAuthBotId: settings.notionOAuthBotId || "",
     notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
     ollamaBaseUrl: cleanBaseUrl(settings.ollamaBaseUrl),
-    ollamaModel: String(settings.ollamaModel || "llama3.1:8b").trim(),
+    ollamaModel,
     bookTitle: settings.bookTitle || ""
   });
 
@@ -172,7 +179,7 @@ function publicSettings(settings = getSettings()) {
     notionOAuthRedirectUri: settings.notionOAuthRedirectUri || DEFAULT_NOTION_REDIRECT_URI,
     notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
     ollamaBaseUrl: settings.ollamaBaseUrl || "http://localhost:11434",
-    ollamaModel: settings.ollamaModel || "llama3.1:8b",
+    ollamaModel: settings.ollamaModel || DEFAULT_OLLAMA_MODEL,
     bookTitle: settings.bookTitle || "",
     hasNotionToken: Boolean(settings.notionToken),
     hasNotionOAuthSecret: Boolean(settings.notionOAuthClientSecret),
@@ -272,12 +279,12 @@ function isConnectionRefusedError(error) {
 }
 
 function getOllamaModel(settings) {
-  return String(settings.ollamaModel || "llama3.1:8b").trim();
+  return String(settings.ollamaModel || DEFAULT_OLLAMA_MODEL).trim();
 }
 
 function getOllamaModelMissingMessage(settings) {
-  const model = getOllamaModel(settings) || "llama3.1:8b";
-  return `Ollama model "${model}" is not available. Run: ollama pull ${model}`;
+  const model = getOllamaModel(settings) || DEFAULT_OLLAMA_MODEL;
+  return `Local model "${model}" is not available. Run: ollama pull ${model}`;
 }
 
 function isOllamaModelMissingError(errorOrText) {
@@ -287,7 +294,7 @@ function isOllamaModelMissingError(errorOrText) {
 
 function formatOllamaError(error, settings) {
   if (isConnectionRefusedError(error)) {
-    return "Ollama is not running. Start Ollama, then retry.";
+    return "Local AI is not running. Start Ollama, then retry.";
   }
 
   if (isOllamaModelMissingError(error)) {
@@ -300,32 +307,32 @@ function formatOllamaError(error, settings) {
 function normalizeGeneratedQuestion(rawQuestion) {
   const raw = String(rawQuestion || "").trim();
   if (!raw) {
-    throw new Error("Ollama did not return a question.");
+    throw new Error("Local AI did not return a question.");
   }
 
   const paragraphs = raw.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
   if (paragraphs.length > 1) {
-    throw new Error("Ollama returned multiple paragraphs instead of one question. Try again or use a smaller selection.");
+    throw new Error("Local AI returned multiple paragraphs instead of one question. Try again or use a smaller selection.");
   }
 
   const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length > 1) {
-    throw new Error("Ollama returned multiple lines instead of one question. Try again or use a smaller selection.");
+    throw new Error("Local AI returned multiple lines instead of one question. Try again or use a smaller selection.");
   }
 
   const withoutPrefix = raw.replace(/^(question|q)\s*[:.)-]\s*/i, "").trim();
   if (/^answer\s*[:.)-]/i.test(withoutPrefix)) {
-    throw new Error("Ollama returned an answer instead of a question. Try again.");
+    throw new Error("Local AI returned an answer instead of a question. Try again.");
   }
 
   const questionEnd = withoutPrefix.indexOf("?");
   if (questionEnd === -1) {
-    throw new Error("Ollama returned text that was not a question. Try again.");
+    throw new Error("Local AI returned text that was not a question. Try again.");
   }
 
   const question = withoutPrefix.slice(0, questionEnd + 1).replace(/^["']|["']$/g, "").trim();
   if (question.length > 220) {
-    throw new Error("Ollama returned a question that was too long. Try a smaller selection.");
+    throw new Error("Local AI returned a question that was too long. Try a smaller selection.");
   }
 
   return question;
@@ -334,15 +341,15 @@ function normalizeGeneratedQuestion(rawQuestion) {
 function normalizeGeneratedAnswer(rawAnswer, exactText) {
   const answer = String(rawAnswer || "").replace(/\s+/g, " ").trim();
   if (!answer) {
-    throw new Error("Ollama did not return an AI answer.");
+    throw new Error("Local AI did not return an AI answer.");
   }
 
   if (answer.length > 700) {
-    throw new Error("Ollama returned an AI answer that was too long. Try a smaller selection.");
+    throw new Error("Local AI returned an AI answer that was too long. Try a smaller selection.");
   }
 
   if (answer === String(exactText || "").replace(/\s+/g, " ").trim()) {
-    throw new Error("Ollama copied the source text instead of writing an AI answer. Try again.");
+    throw new Error("Local AI copied the source text instead of writing an AI answer. Try again.");
   }
 
   return answer;
@@ -362,14 +369,14 @@ function parseGeneratedStudyItem(rawText, exactText) {
   const jsonEnd = cleaned.lastIndexOf("}");
 
   if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-    throw new Error("Ollama did not return the expected question and answer JSON. Try again.");
+    throw new Error("Local AI did not return the expected question and answer JSON. Try again.");
   }
 
   let parsed;
   try {
     parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
   } catch {
-    throw new Error("Ollama returned invalid JSON for the question and answer. Try again.");
+    throw new Error("Local AI returned invalid JSON for the question and answer. Try again.");
   }
 
   return {
@@ -696,7 +703,7 @@ async function generateStudyItem({ exactText, settings }) {
 async function generateOllamaQuestion({ exactText, settings }) {
   const model = getOllamaModel(settings);
   if (!model) {
-    throw new Error("Ollama model is missing.");
+    throw new Error("Local model is missing.");
   }
 
   try {
@@ -715,7 +722,7 @@ async function generateOllamaQuestion({ exactText, settings }) {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(body || `Ollama returned HTTP ${response.status}.`);
+      throw new Error(body || `Local AI returned HTTP ${response.status}.`);
     }
 
     const data = await response.json();
@@ -809,19 +816,21 @@ async function checkOllamaConnection(settings) {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(body || `Ollama returned HTTP ${response.status}.`);
+      throw new Error(body || `Local AI returned HTTP ${response.status}.`);
     }
 
     return {
       status: "connected",
-      message: "Connected",
-      provider: "ollama"
+      message: `Connected to ${model}`,
+      provider: "ollama",
+      model
     };
   } catch (error) {
     return {
       status: "error",
       message: formatOllamaError(error, settings),
-      provider: "ollama"
+      provider: "ollama",
+      model
     };
   }
 }
@@ -1113,7 +1122,7 @@ async function processCapture(payload) {
     };
 
     if (payload.isOnline === false) {
-      throw new Error("Offline: generated locally with Ollama. Notion sync is queued until you reconnect.");
+      throw new Error("Offline: generated with local AI. Notion sync is queued until you reconnect.");
     }
 
     const notionBlockId = existing?.notionBlockId || await appendToggleToNotion({
@@ -1270,7 +1279,7 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
     notionOAuthClientSecret: String(nextSettings.notionOAuthClientSecret || current.notionOAuthClientSecret || "").trim(),
     notionOAuthRedirectUri: cleanRedirectUri(nextSettings.notionOAuthRedirectUri || current.notionOAuthRedirectUri),
     ollamaBaseUrl: cleanBaseUrl(nextSettings.ollamaBaseUrl || current.ollamaBaseUrl),
-    ollamaModel: String(nextSettings.ollamaModel || current.ollamaModel || "llama3.1:8b").trim(),
+    ollamaModel: String(nextSettings.ollamaModel || current.ollamaModel || DEFAULT_OLLAMA_MODEL).trim(),
     bookTitle: String(nextSettings.bookTitle || "").trim()
   };
 

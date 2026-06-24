@@ -20,7 +20,7 @@
         <section class="panel">
           <div class="panel-header">
             <h2>Setup</h2>
-            <button id="validateSettings" class="icon-button" title="Check Notion and Ollama connections">Check</button>
+            <button id="validateSettings" class="icon-button" title="Check Notion and local AI connections">Check</button>
           </div>
 
           <label>
@@ -63,13 +63,13 @@
           <p class="field-note notion-field notion-oauth">OAuth grants page access, but LearnBetter still needs the destination page link unless your integration duplicates a template page.</p>
 
           <label>
-            Ollama URL
+            Local model URL
             <input id="ollamaBaseUrl" type="url" autocomplete="off" value="http://localhost:11434">
           </label>
 
           <label>
-            Ollama model
-            <input id="ollamaModel" type="text" autocomplete="off" value="llama3.1:8b">
+            Local model
+            <input id="ollamaModel" type="text" autocomplete="off" value="gemma4:e4b">
           </label>
 
           <label>
@@ -84,9 +84,9 @@
               <span class="connection-name">Notion</span>
               <span id="notionStatusText" class="connection-message">Not configured</span>
             </div>
-            <div class="connection-row" title="Ollama connection">
+            <div class="connection-row" title="Local AI connection">
               <span id="ollamaStatusDot" class="status-dot missing"></span>
-              <span class="connection-name">Ollama</span>
+              <span class="connection-name">Local AI</span>
               <span id="ollamaStatusText" class="connection-message">Not configured</span>
             </div>
           </div>
