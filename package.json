@@ -37,7 +37,7 @@
     "dist:win": "electron-builder --win nsis --publish never"
   },
   "dependencies": {
-    "@notionhq/client": "^5.22.0",
+    "@notionhq/client": "^5.25.2",
     "electron-store": "^11.0.2",
     "pdfjs-dist": "^6.0.227"
   },
