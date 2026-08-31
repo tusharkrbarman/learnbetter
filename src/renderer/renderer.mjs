@@ -78,7 +78,6 @@ const SIDEBAR_MAX_WIDTH = 640;
 const SIDEBAR_DEFAULT_WIDTH = 320;
 const SIDEBAR_READER_MIN_WIDTH = 520;
 const SIDEBAR_STORAGE_KEY = "learnbetter.sidebarWidth";
-const DEFAULT_OLLAMA_MODEL = "gemma4:e4b";
 const CONNECTION_LABELS = {
   connected: "Connected",
   error: "Error",
@@ -276,10 +275,6 @@ function updateFindControls(isBusy = state.isRendering) {
   els.searchNext.disabled = isBusy || !hasPdf || !hasQuery;
 }
 
-function bytesToUint8Array(bytes) {
-  return new Uint8Array(bytes);
-}
-
 function escapeText(text) {
   return String(text || "").replace(/\s+/g, " ").trim();
 }
@@ -292,23 +287,7 @@ function normalizePdfTextForFingerprint(text) {
     .trim();
 }
 
-function fallbackTextHash(text) {
-  let hash = 0x811c9dc5;
-  const normalized = normalizePdfTextForFingerprint(text);
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
-}
-
 async function sha256Text(text) {
-  if (!window.crypto?.subtle) {
-    return fallbackTextHash(text);
-  }
-
   const bytes = new TextEncoder().encode(text);
   const digest = await window.crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest))
@@ -394,10 +373,6 @@ function renderCaptureList(highlights = []) {
   }
 }
 
-async function refreshCaptures() {
-  renderCaptureList([]);
-}
-
 function renderSessionCaptures(highlights = []) {
   renderCaptureList(highlights.filter((item) => state.sessionCaptureHashes.has(item.hash)));
 }
@@ -425,23 +400,7 @@ function getCapturesForCurrentPdf(highlights = []) {
   return highlights.filter((item) => isCaptureForPdf(item));
 }
 
-function getCaptureSourceParts(source = []) {
-  if (Array.isArray(source)) {
-    return {
-      highlights: source,
-      deleteQueue: []
-    };
-  }
-
-  return {
-    highlights: source.highlights || [],
-    deleteQueue: source.deleteQueue || []
-  };
-}
-
-function renderVisibleCaptures(source = []) {
-  const { highlights, deleteQueue } = getCaptureSourceParts(source);
-
+function renderVisibleCaptures({ highlights = [], deleteQueue = [] } = {}) {
   if (state.pdfName) {
     renderCaptureList([
       ...getCapturesForCurrentPdf(highlights),
@@ -466,7 +425,7 @@ async function loadSettings() {
   els.notionOAuthClientId.value = settings.notionOAuthClientId || "";
   els.notionOAuthRedirectUri.value = settings.notionOAuthRedirectUri || "http://127.0.0.1:45891/notion/callback";
   els.ollamaBaseUrl.value = settings.ollamaBaseUrl || "http://localhost:11434";
-  els.ollamaModel.value = settings.ollamaModel || DEFAULT_OLLAMA_MODEL;
+  els.ollamaModel.value = settings.ollamaModel;
   els.bookTitle.value = settings.bookTitle || "";
   els.notionToken.placeholder = settings.hasNotionToken ? "Saved token" : "secret_...";
   els.notionOAuthClientSecret.placeholder = settings.hasNotionOAuthSecret ? "Saved OAuth secret" : "OAuth client secret";
@@ -853,7 +812,7 @@ async function loadStoredHighlightsForPdf() {
   ));
 
   state.visualHighlights = getHighlightRectsForPdf(result.highlights);
-  renderVisibleCaptures(result.highlights);
+  renderVisibleCaptures(result);
   redrawVisualHighlightsSoon();
 
   if (restoredFromDocumentVersion) {
@@ -875,7 +834,7 @@ async function renderPdf(pdfData) {
   els.emptyState.style.display = "none";
   initializePdfViewer();
 
-  const loadingTask = pdfjsLib.getDocument({ data: bytesToUint8Array(pdfData.bytes) });
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfData.bytes) });
   state.pdf = await loadingTask.promise;
   state.pdfContentFingerprint = await computePdfContentFingerprint(state.pdf);
   state.linkService.setDocument(state.pdf);
@@ -893,7 +852,7 @@ async function openPdf() {
   await renderPdf(pdfData);
 }
 
-async function setZoom(nextScale) {
+function setZoom(nextScale) {
   if (!state.pdf || state.isRendering) {
     return;
   }
@@ -919,16 +878,16 @@ function setScaleMode(scaleMode) {
   redrawVisualHighlightsSoon();
 }
 
-async function zoomIn() {
-  await setZoom(state.scale + ZOOM_STEP);
+function zoomIn() {
+  setZoom(state.scale + ZOOM_STEP);
 }
 
-async function zoomOut() {
-  await setZoom(state.scale - ZOOM_STEP);
+function zoomOut() {
+  setZoom(state.scale - ZOOM_STEP);
 }
 
-async function resetZoom() {
-  await setZoom(ZOOM_DEFAULT);
+function resetZoom() {
+  setZoom(ZOOM_DEFAULT);
 }
 
 function fitWidth() {
@@ -1023,7 +982,7 @@ async function captureHighlight() {
     });
 
     rememberSessionCapture(result.record);
-    renderVisibleCaptures(result.highlights);
+    renderVisibleCaptures(result);
 
     if (result.duplicate && result.ok) {
       setStatus("This highlight was already synced.", "success");
@@ -1288,7 +1247,7 @@ window.addEventListener("offline", showOfflineStatus);
 
 loadSidebarWidth();
 await loadSettings();
-await refreshCaptures();
+renderCaptureList([]);
 if (window.navigator.onLine) {
   await refreshConnectionStatus();
 } else {

@@ -368,14 +368,12 @@ Useful scripts:
 
 ```powershell
 npm run check
-npm run icons
 npm run dist:win
 ```
 
 Script details:
 
 - `npm run check`: validates required project files.
-- `npm run icons`: regenerates app icon assets.
 - `npm run dist:win`: builds a Windows NSIS installer in `dist/`.
 
 Syntax checks:
@@ -393,7 +391,6 @@ src/main/        Electron main process, Notion API, Ollama API, local store
 src/renderer/    PDF reader UI, PDF.js viewer, highlight capture
 assets/          App icons and visual assets
 site/            Static download website
-deploy/          Kubernetes and Argo CD examples
 .github/         CI, installer build, release, Pages, Dependabot
 ```
 
@@ -407,8 +404,6 @@ deploy/          Kubernetes and Argo CD examples
 - electron-builder
 - GitHub Actions
 - GitHub Pages
-- Kubernetes manifests
-- Argo CD application manifest
 - Dependabot
 
 ## 🌐 Website

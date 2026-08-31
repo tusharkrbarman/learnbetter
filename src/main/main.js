@@ -14,7 +14,6 @@ const DEFAULT_OLLAMA_MODEL = "gemma4:e4b";
 const LEGACY_OLLAMA_MODELS = new Set(["llama3.1:8b"]);
 const MAX_HIGHLIGHTS = 100;
 const MAX_QUEUE_ITEMS = 50;
-const MAX_DELETE_QUEUE_ITEMS = 50;
 const MAX_QUEUE_ATTEMPTS = 5;
 const Store = ElectronStore.default || ElectronStore;
 
@@ -167,7 +166,7 @@ function migrateStoreData() {
 
   store.set("highlights", (Array.isArray(store.get("highlights")) ? store.get("highlights") : []).slice(0, MAX_HIGHLIGHTS));
   store.set("queue", trimQueue(store.get("queue"), MAX_QUEUE_ITEMS));
-  store.set("deleteQueue", trimQueue(store.get("deleteQueue"), MAX_DELETE_QUEUE_ITEMS));
+  store.set("deleteQueue", trimQueue(store.get("deleteQueue"), MAX_QUEUE_ITEMS));
 }
 
 function publicSettings(settings = getSettings()) {
@@ -628,11 +627,7 @@ function plainTextBlocks(text) {
     });
   }
 
-  return blocks.length > 0 ? blocks : [{
-    object: "block",
-    type: "paragraph",
-    paragraph: { rich_text: [] }
-  }];
+  return blocks;
 }
 
 function sourceBlock(bookTitle, pdfName, pageNumber) {
@@ -694,10 +689,6 @@ function makeToggleBlock({ question, aiAnswer, exactText, bookTitle, pdfName, pa
       ]
     }
   };
-}
-
-async function generateStudyItem({ exactText, settings }) {
-  return generateOllamaQuestion({ exactText, settings });
 }
 
 async function generateOllamaQuestion({ exactText, settings }) {
@@ -931,7 +922,7 @@ function saveDeleteQueue(record) {
   }
 
   const queue = getDeleteQueue();
-  const next = [record, ...queue.filter((item) => item.hash !== record.hash)].slice(0, MAX_DELETE_QUEUE_ITEMS);
+  const next = [record, ...queue.filter((item) => item.hash !== record.hash)].slice(0, MAX_QUEUE_ITEMS);
   store.set("deleteQueue", next);
   return next;
 }
@@ -1114,7 +1105,7 @@ async function processCapture(payload) {
   try {
     const studyItem = existing?.question && existing?.aiAnswer
       ? { question: existing.question, aiAnswer: existing.aiAnswer }
-      : await generateStudyItem({ exactText, settings });
+      : await generateOllamaQuestion({ exactText, settings });
     record = {
       ...record,
       question: studyItem.question,
@@ -1355,13 +1346,6 @@ ipcMain.handle("settings:notion-oauth-disconnect", async () => {
 
   store.set("settings", next);
   return publicSettings(next);
-});
-
-ipcMain.handle("settings:validate", async () => {
-  const result = await checkNotionConnection(getSettings());
-  return result.status === "connected"
-    ? { ok: true }
-    : { ok: false, error: result.message };
 });
 
 ipcMain.handle("settings:connection-status", () => {

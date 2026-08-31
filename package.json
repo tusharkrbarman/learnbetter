@@ -32,7 +32,6 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "icons": "node scripts/generate-icons.js",
     "check": "node scripts/check-project.js",
     "dist:win": "electron-builder --win nsis --publish never"
   },

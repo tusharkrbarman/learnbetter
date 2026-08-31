@@ -8,7 +8,6 @@ const required = [
   "src/renderer/index.html",
   "src/renderer/renderer.mjs",
   "src/renderer/styles.css",
-  "assets/icons/icon.svg",
   "assets/icons/icon.png",
   "assets/icons/icon.ico"
 ];
