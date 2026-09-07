@@ -38,7 +38,7 @@
   "dependencies": {
     "@notionhq/client": "^5.22.0",
     "electron-store": "^11.0.2",
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "^6.3.289"
   },
   "devDependencies": {
     "electron": "^44.0.0",
