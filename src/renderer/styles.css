@@ -340,7 +340,7 @@ body[data-notion-auth="oauth"] .oauth-actions {
 
 .connection-row {
   display: grid;
-  grid-template-columns: 8px 48px 1fr;
+  grid-template-columns: 8px 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   min-width: 0;
@@ -535,6 +535,14 @@ body[data-notion-auth="oauth"] .oauth-actions {
   font-size: 12px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+.status-action {
+  padding: 2px 5px;
+  border: 1px solid #d4d4ce;
+  background: transparent;
+  color: #3c3f44;
+  font: inherit;
 }
 
 .capture-item .capture-error {

@@ -1,7 +1,8 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { clipboard, contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("notionPdf", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
+  copyText: (text) => clipboard.writeText(String(text || "")),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   getConnectionStatus: () => ipcRenderer.invoke("settings:connection-status"),
   connectNotionOAuth: (settings) => ipcRenderer.invoke("settings:notion-oauth-start", settings),

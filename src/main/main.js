@@ -1,10 +1,16 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const crypto = require("node:crypto");
 const http = require("node:http");
 const ElectronStore = require("electron-store");
 const { Client: NotionClient } = require("@notionhq/client");
+const {
+  encryptNotionSecrets,
+  migrateNotionSecrets,
+  readNotionSettings,
+  splitNotionSecrets
+} = require("./notion-secrets");
 
 const APP_NAME = "LearnBetter";
 const APP_ID = "com.tusharkrbarman.learnbetter";
@@ -16,6 +22,7 @@ const MAX_HIGHLIGHTS = 100;
 const MAX_QUEUE_ITEMS = 50;
 const MAX_QUEUE_ATTEMPTS = 5;
 const Store = ElectronStore.default || ElectronStore;
+let notionSecretError = "";
 
 app.setName(APP_NAME);
 app.setAppUserModelId(APP_ID);
@@ -26,19 +33,17 @@ const store = new Store({
   defaults: {
     settings: {
       notionAuthMode: "token",
-      notionToken: "",
       notionPageId: "",
       notionPageInput: "",
       notionOAuthClientId: "",
-      notionOAuthClientSecret: "",
       notionOAuthRedirectUri: DEFAULT_NOTION_REDIRECT_URI,
-      notionOAuthRefreshToken: "",
       notionOAuthBotId: "",
       notionOAuthWorkspaceName: "",
       ollamaBaseUrl: "http://localhost:11434",
       ollamaModel: DEFAULT_OLLAMA_MODEL,
       bookTitle: ""
     },
+    notionSecrets: "",
     highlights: [],
     queue: [],
     deleteQueue: []
@@ -112,7 +117,25 @@ function normalizeNotionPageId(input) {
 }
 
 function getSettings() {
-  return store.get("settings");
+  const storedSettings = store.get("settings", {});
+  const { settings, secrets: legacySecrets } = splitNotionSecrets(storedSettings);
+
+  if (Object.values(legacySecrets).some(Boolean)) {
+    notionSecretError ||= "Windows credential encryption is unavailable. Restart LearnBetter, then reconnect Notion.";
+    return { ...settings, ...splitNotionSecrets({}).secrets };
+  }
+
+  const result = readNotionSettings(settings, store.get("notionSecrets", ""), safeStorage);
+  notionSecretError = result.error;
+  return result.settings;
+}
+
+function saveSettings(settings) {
+  const separated = splitNotionSecrets(settings);
+  const notionSecrets = encryptNotionSecrets(separated.secrets, safeStorage);
+  store.set({ settings: separated.settings, notionSecrets });
+  notionSecretError = "";
+  return settings;
 }
 
 function getHighlights() {
@@ -135,6 +158,13 @@ function trimQueue(queue, limit) {
 }
 
 function migrateStoreData() {
+  try {
+    store.store = migrateNotionSecrets(store.store, safeStorage);
+    notionSecretError = "";
+  } catch (error) {
+    notionSecretError = error.message || String(error);
+  }
+
   const settings = {
     ...store.get("settings", {})
   };
@@ -148,21 +178,20 @@ function migrateStoreData() {
     ? DEFAULT_OLLAMA_MODEL
     : savedOllamaModel;
 
-  store.set("settings", {
-    notionAuthMode: settings.notionAuthMode || "token",
-    notionToken: settings.notionToken || "",
-    notionPageId: settings.notionPageId || "",
-    notionPageInput: settings.notionPageInput || settings.notionPageId || "",
-    notionOAuthClientId: settings.notionOAuthClientId || "",
-    notionOAuthClientSecret: settings.notionOAuthClientSecret || "",
-    notionOAuthRedirectUri: cleanRedirectUri(settings.notionOAuthRedirectUri),
-    notionOAuthRefreshToken: settings.notionOAuthRefreshToken || "",
-    notionOAuthBotId: settings.notionOAuthBotId || "",
-    notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
-    ollamaBaseUrl: cleanBaseUrl(settings.ollamaBaseUrl),
-    ollamaModel,
-    bookTitle: settings.bookTitle || ""
-  });
+  if (!Object.values(splitNotionSecrets(settings).secrets).some(Boolean)) {
+    store.set("settings", {
+      notionAuthMode: settings.notionAuthMode || "token",
+      notionPageId: settings.notionPageId || "",
+      notionPageInput: settings.notionPageInput || settings.notionPageId || "",
+      notionOAuthClientId: settings.notionOAuthClientId || "",
+      notionOAuthRedirectUri: cleanRedirectUri(settings.notionOAuthRedirectUri),
+      notionOAuthBotId: settings.notionOAuthBotId || "",
+      notionOAuthWorkspaceName: settings.notionOAuthWorkspaceName || "",
+      ollamaBaseUrl: cleanBaseUrl(settings.ollamaBaseUrl),
+      ollamaModel,
+      bookTitle: settings.bookTitle || ""
+    });
+  }
 
   store.set("highlights", (Array.isArray(store.get("highlights")) ? store.get("highlights") : []).slice(0, MAX_HIGHLIGHTS));
   store.set("queue", trimQueue(store.get("queue"), MAX_QUEUE_ITEMS));
@@ -498,7 +527,7 @@ async function refreshNotionOAuthToken(settings = getSettings()) {
     notionOAuthWorkspaceName: data.workspace_name || settings.notionOAuthWorkspaceName
   };
 
-  store.set("settings", next);
+  saveSettings(next);
   return next;
 }
 
@@ -749,6 +778,13 @@ async function validateNotionDestination({ settings, notionPageInput, notionPage
 }
 
 async function checkNotionConnection(settings) {
+  if (notionSecretError) {
+    return {
+      status: "error",
+      message: notionSecretError
+    };
+  }
+
   if (isOAuthMode(settings) && settings.notionOAuthRefreshToken) {
     settings = await refreshNotionOAuthToken(settings);
   }
@@ -821,7 +857,8 @@ async function checkOllamaConnection(settings) {
       status: "error",
       message: formatOllamaError(error, settings),
       provider: "ollama",
-      model
+      model,
+      action: isOllamaModelMissingError(error) ? "pull_model" : ""
     };
   }
 }
@@ -1284,7 +1321,7 @@ ipcMain.handle("settings:save", async (_event, nextSettings) => {
     notionPageId
   });
 
-  store.set("settings", merged);
+  saveSettings(merged);
   return publicSettings(merged);
 });
 
@@ -1305,7 +1342,7 @@ ipcMain.handle("settings:notion-oauth-start", async (_event, nextSettings) => {
   const callbackPromise = waitForNotionOAuthCallback({ redirectUri, state });
   const authUrl = getNotionAuthUrl({ clientId, redirectUri, state });
 
-  store.set("settings", settings);
+  saveSettings(settings);
   await shell.openExternal(authUrl);
 
   const code = await callbackPromise;
@@ -1330,7 +1367,7 @@ ipcMain.handle("settings:notion-oauth-start", async (_event, nextSettings) => {
     next.notionPageInput = next.notionPageId;
   }
 
-  store.set("settings", next);
+  saveSettings(next);
   return publicSettings(next);
 });
 
@@ -1344,7 +1381,7 @@ ipcMain.handle("settings:notion-oauth-disconnect", async () => {
     notionOAuthWorkspaceName: ""
   };
 
-  store.set("settings", next);
+  saveSettings(next);
   return publicSettings(next);
 });
 

@@ -447,7 +447,7 @@ git push origin v0.1.0
 - LearnBetter does not need an OpenAI key.
 - Highlight text is sent to your local Ollama server for question and answer generation.
 - Notion receives the generated question, generated answer, exact copied text, and source metadata.
-- Notion tokens and setup data are stored locally with Electron Store under the app name `learnbetter`.
+- Notion credentials are encrypted with the Windows account through Electron `safeStorage`; non-secret setup data remains in Electron Store.
 - Do not commit Notion tokens, OAuth secrets, `.env` files, certificates, or keys.
 
 The repository ignores dependency folders, build outputs, local cache files, `.env`, `.env.*`, certificate files, and key files.

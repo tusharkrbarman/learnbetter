@@ -5,6 +5,7 @@ import {
   PDFLinkService,
   PDFViewer
 } from "../../node_modules/pdfjs-dist/web/pdf_viewer.mjs";
+import { getModelInstallCommand } from "./local-ai-status.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "../../node_modules/pdfjs-dist/build/pdf.worker.mjs";
 
@@ -28,6 +29,7 @@ const els = {
   notionStatusText: document.querySelector("#notionStatusText"),
   ollamaStatusDot: document.querySelector("#ollamaStatusDot"),
   ollamaStatusText: document.querySelector("#ollamaStatusText"),
+  copyModelCommand: document.querySelector("#copyModelCommand"),
   openPdf: document.querySelector("#openPdf"),
   captureHighlight: document.querySelector("#captureHighlight"),
   searchPdf: document.querySelector("#searchPdf"),
@@ -213,6 +215,13 @@ function updateNotionFields() {
 function setConnectionChecking() {
   setProviderStatus("notion", "checking");
   setProviderStatus("ollama", "checking");
+  els.copyModelCommand.hidden = true;
+}
+
+function updateModelInstallAction(status) {
+  const command = getModelInstallCommand(status);
+  els.copyModelCommand.dataset.command = command;
+  els.copyModelCommand.hidden = !command;
 }
 
 async function refreshConnectionStatus({ showStatus = false } = {}) {
@@ -222,6 +231,7 @@ async function refreshConnectionStatus({ showStatus = false } = {}) {
     const result = await window.notionPdf.getConnectionStatus();
     setProviderStatus("notion", result.notion.status, result.notion.message);
     setProviderStatus("ollama", result.ollama.status, result.ollama.message);
+    updateModelInstallAction(result.ollama);
 
     const isConnected = result.notion.status === "connected" && result.ollama.status === "connected";
     if (showStatus) {
@@ -232,6 +242,7 @@ async function refreshConnectionStatus({ showStatus = false } = {}) {
   } catch (error) {
     setProviderStatus("notion", "error", "Could not check");
     setProviderStatus("ollama", "error", "Could not check");
+    updateModelInstallAction(null);
     if (showStatus) {
       setStatus(error.message || String(error), "error");
     }
@@ -247,6 +258,7 @@ function setBusy(isBusy) {
   els.retryQueue.disabled = isBusy;
   els.connectNotionOAuth.disabled = isBusy;
   els.disconnectNotionOAuth.disabled = isBusy;
+  els.copyModelCommand.disabled = isBusy;
   updateFindControls(isBusy);
   updateZoomControls(isBusy);
 }
@@ -517,6 +529,16 @@ async function validateSettings() {
   } finally {
     setBusy(false);
   }
+}
+
+function copyModelInstallCommand() {
+  const command = els.copyModelCommand.dataset.command;
+  if (!command) {
+    return;
+  }
+
+  window.notionPdf.copyText(command);
+  setStatus(`Copied: ${command}`, "success");
 }
 
 function updatePageMeta(pageNumber = state.currentPage) {
@@ -1186,6 +1208,7 @@ async function autoRetryQueue() {
 
 els.saveSettings.addEventListener("click", saveSettings);
 els.validateSettings.addEventListener("click", validateSettings);
+els.copyModelCommand.addEventListener("click", copyModelInstallCommand);
 els.notionAuthMode.addEventListener("change", () => {
   updateNotionFields();
   setProviderStatus("notion", "missing", "Save setup to check");

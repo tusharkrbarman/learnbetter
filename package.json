@@ -33,6 +33,8 @@
   "scripts": {
     "start": "electron .",
     "check": "node scripts/check-project.js",
+    "test": "node --test",
+    "test:safe-storage": "electron scripts/safe-storage-smoke.cjs",
     "dist:win": "electron-builder --win nsis --publish never"
   },
   "dependencies": {

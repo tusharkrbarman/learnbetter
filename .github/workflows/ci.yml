@@ -30,6 +30,12 @@ jobs:
       - name: Check project structure
         run: npm run check
 
+      - name: Test
+        run: npm test
+
+      - name: Test Windows credential encryption
+        run: npm run test:safe-storage
+
       - name: Syntax check main process
         run: node --check src/main/main.js
 
